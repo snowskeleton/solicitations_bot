@@ -1,0 +1,4 @@
+.venv
+email_secrets.py
+__pycache__
+.DS_Store

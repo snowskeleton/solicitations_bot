@@ -1,0 +1,1 @@
+class MailError(Exception): pass
