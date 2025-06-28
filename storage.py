@@ -25,6 +25,15 @@ class MagicLinkToken:
     expires_at: float
 
 
+# Schedule model
+@dataclass
+class Schedule:
+    id: int
+    user_id: int
+    name: str
+    time: str
+
+
 # Persistent storage using SQLite
 def setup_db():
     with sqlite3.connect(DB_PATH) as conn:
@@ -51,6 +60,15 @@ def setup_db():
                 token TEXT,
                 email TEXT,
                 expires_at REAL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS schedules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                name TEXT,
+                time TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
             )
         ''')
         conn.commit()
@@ -106,3 +124,24 @@ def list_users() -> List[User]:
         for id_, email, is_admin in cursor.fetchall():
             users.append(User(id=id_, email=email, is_admin=bool(is_admin)))
     return users
+
+
+# Schedule-related functions
+def get_schedules_for_user(user_id: int) -> List[Schedule]:
+    schedules: List[Schedule] = []
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, user_id, name, time FROM schedules WHERE user_id = ?', (user_id,))
+        for row in cursor.fetchall():
+            schedules.append(Schedule(*row))
+    return schedules
+
+
+def add_schedule(user_id: int, name: str, time: str) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO schedules (user_id, name, time) VALUES (?, ?, ?)', (user_id, name, time))
+        conn.commit()
+        return cursor.lastrowid

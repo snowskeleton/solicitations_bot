@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Your Email Schedules</h2>
+
+{% if schedules %}
+    <ul>
+    {% for schedule in schedules %}
+        <li>{{ schedule.name }} — {{ schedule.time }}</li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>You don't have any schedules set up.</p>
+{% endif %}
+
+<form action="/schedule/new" method="get">
+    <button type="submit">Add New Schedule</button>
+</form>
+{% endblock %}

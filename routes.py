@@ -43,7 +43,7 @@ def add_user():
 
 @app.route("/login", methods=["GET"])
 def login_form():
-    return render_template("login.html")
+    return render_template("base.html")
 
 
 @app.route("/send-link", methods=["POST"])
@@ -75,5 +75,11 @@ def magic_login():
     return redirect("/")
 
 
-if __name__ == "__main__":
-    app.run(debug=True)
+@app.route("/schedule", methods=["GET"])
+def schedule():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = storage.get_user(email)
+    schedules = storage.get_schedules_for_user(user.id)
+    return render_template("schedule.html", schedules=schedules)

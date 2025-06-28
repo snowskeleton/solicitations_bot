@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solicitations Portal</title>
+</head>
+<body>
+    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 1em;">
+        {% if email %}
+            <span>Hello, {{ email }}!</span>
+            <form action="/logout" method="post" style="margin: 0;">
+                <input type="submit" value="Logout">
+            </form>
+        {% else %}
+            <form action="/send-link" method="post" style="display: flex; gap: 0.5em; margin: 0;">
+                <input type="email" name="email" required placeholder="Enter email">
+                <input type="submit" value="Login">
+            </form>
+        {% endif %}
+    </div>
+    {% if is_admin %}
+        <form action="/admin" method="get">
+            <input type="submit" value="Admin Console">
+        </form>
+    {% endif %}
+    <hr>
+    {% block content %}{% endblock %}
+</body>
+</html>
