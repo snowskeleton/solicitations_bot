@@ -1,20 +1,27 @@
+import routes  # Import admin console after app is created
 import gzip
 import requests
 
 from io import BytesIO
 
-from seleniumwire import webdriver  # Allows access to request/response data
 import json
+
+from flask import Flask
+from seleniumbase import Driver
 
 from Solicitation import Solicitation
 from emailer import send_summary_email
+from env import COOKIE_SECRET, ADMIN_EMAIL
+from routes import app  # Import Flask app from routes
+from storage import setup_db, add_user
 
 
 # Suppress SSL warnings for self-signed certs
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-if __name__ == "__main__":
+
+def run_scraper_job():
     # Optional: Run headless
     from selenium.webdriver.chrome.options import Options
 
@@ -30,7 +37,7 @@ if __name__ == "__main__":
     }
     options.add_experimental_option("prefs", prefs)
 
-    driver = webdriver.Chrome(options=options)
+    driver = Driver(headless=True, options=options)
 
     # Step 1: Visit page, trigger JS-driven API call
     driver.get("https://evp.nc.gov/solicitations/")
@@ -80,3 +87,9 @@ if __name__ == "__main__":
                 break
 
     driver.quit()
+
+
+if __name__ == "__main__":
+    setup_db()
+    add_user(ADMIN_EMAIL, is_admin=True)
+    app.run(host="0.0.0.0", port=5002, debug=True)

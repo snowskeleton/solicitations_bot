@@ -6,7 +6,7 @@ from email.mime.multipart import MIMEMultipart
 from typing import List
 from Solicitation import Solicitation
 
-from email_secrets import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, FROM_ADDRESS
+from env import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, FROM_ADDRESS
 from exceptions import MailError
 
 

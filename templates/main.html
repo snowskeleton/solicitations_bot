@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Solicitations Portal</title>
+</head>
+<body>
+    <p>Hello, {{ email }}!</p>
+    {% if is_admin %}
+        <form action="/admin" method="get">
+            <input type="submit" value="Admin Console">
+        </form>
+    {% endif %}
+    <form action="/logout" method="post">
+        <input type="submit" value="Logout">
+    </form>
+</body>
+</html>

@@ -1,4 +1,5 @@
 .venv
-email_secrets.py
+env.py
+*.db
 __pycache__
 .DS_Store
