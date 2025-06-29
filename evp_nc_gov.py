@@ -4,6 +4,7 @@ import requests
 from io import BytesIO
 
 import json
+import os
 
 from seleniumbase import Driver
 
@@ -12,65 +13,87 @@ from storage import User
 from emailer import send_summary_email
 
 
-def run_scraper_job(user: User):
-    # Optional: Run headless
-    from selenium.webdriver.chrome.options import Options
+def fetch_solicitation_data(user: User, use_cache: bool = False) -> list[Solicitation]:
+    from filters import evaluate_filter
+    from storage import get_filters_for_user
 
-    options = Options()
-    options.add_argument("--headless=new")
+    if use_cache and os.path.exists("solicitations_cache.json"):
+        with open("solicitations_cache.json", "r") as f:
+            data = json.load(f)
+    else:
+        from selenium.webdriver.chrome.options import Options
 
-    driver = Driver(
-        headless=True,
-        agent="user",
-        browser="chrome",
-        use_wire=True
-    )
+        options = Options()
+        options.add_argument("--headless=new")
 
-    # Step 1: Visit page, trigger JS-driven API call
-    driver.get("https://evp.nc.gov/solicitations/")
+        driver = Driver(
+            headless=True,
+            agent="user",
+            browser="chrome",
+            use_wire=True
+        )
 
-    # Allow page to load and API calls to complete
-    driver.implicitly_wait(5)  # Adjust as needed
+        driver.get("https://evp.nc.gov/solicitations/")
+        driver.implicitly_wait(5)
 
-    # Step 2: Loop through requests to find the JSON API response
-    for request in driver.requests:
-        if request.response:
-            if "/_services/entity-grid-data.json/" in request.url and request.response.status_code == 200:
-                updated_payload = json.loads(request.body.decode('utf-8'))
-                updated_payload['pageSize'] = 100
+        data = None
+        for request in driver.requests:
+            if not request.response:
+                continue
+            if "/_services/entity-grid-data.json/" not in request.url:
+                continue
+            if request.response.status_code != 200:
+                continue
 
-                headers = dict(request.headers)
-                headers.pop('Content-Length', None)  # Let requests calculate
-                headers['Referer'] = "https://evp.nc.gov/solicitations/"
-                headers['Origin'] = "https://evp.nc.gov"
-                headers['Accept-Encoding'] = "gzip"
+            updated_payload = json.loads(request.body.decode('utf-8'))
+            updated_payload['pageSize'] = 100
 
-                # Make a new requests call with increased pageSize
-                session = requests.Session()
-                for cookie in driver.get_cookies():
-                    session.cookies.set(cookie['name'], cookie['value'])
+            headers = dict(request.headers)
+            headers.pop('Content-Length', None)
+            headers['Referer'] = "https://evp.nc.gov/solicitations/"
+            headers['Origin'] = "https://evp.nc.gov"
+            headers['Accept-Encoding'] = "gzip"
 
-                resp = session.post(
-                    request.url,
-                    headers=headers,
-                    json=updated_payload,
-                    verify=False
-                )
+            session = requests.Session()
+            for cookie in driver.get_cookies():
+                session.cookies.set(cookie['name'], cookie['value'])
 
-                # Decode gzip if necessary
-                encoding = resp.headers.get('Content-Encoding', '').lower()
-                if 'gzip' in encoding:
-                    try:
-                        with gzip.GzipFile(fileobj=BytesIO(resp.content)) as f:
-                            data = json.loads(f.read().decode('utf-8'))
-                    except gzip.BadGzipFile:
-                        data = resp.json()
-                else:
+            resp = session.post(
+                request.url,
+                headers=headers,
+                json=updated_payload,
+                verify=False
+            )
+
+            encoding = resp.headers.get('Content-Encoding', '').lower()
+            if 'gzip' in encoding:
+                try:
+                    with gzip.GzipFile(fileobj=BytesIO(resp.content)) as f:
+                        data = json.loads(f.read().decode('utf-8'))
+                except gzip.BadGzipFile:
                     data = resp.json()
+            else:
+                data = resp.json()
 
-                records = [Solicitation.from_dict(record) for record in data.get("Records", [])]
-                send_summary_email(user.email, records)
+            # Cache to disk
+            with open("solicitations_cache.json", "w") as f:
+                json.dump(data, f, indent=2)
 
-                break
+            break
 
-    driver.quit()
+        driver.quit()
+
+    records = [Solicitation.from_dict(record)
+               for record in data.get("Records", [])]
+
+    filters = get_filters_for_user(user.id)
+    if filters:
+        records = [r for r in records if any(
+            evaluate_filter(f.criteria, r) for f in filters)]
+
+    return records
+
+
+def run_scraper_job(user: User):
+    records = fetch_solicitation_data(user, use_cache=True)
+    send_summary_email(user.email, records)

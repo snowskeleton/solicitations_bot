@@ -117,7 +117,7 @@ def schedule_edit(schedule_id: int):
             day for day in day_fields if getattr(schedule, day.lower())]
         times = {day: getattr(schedule, day.lower()) for day in selected_days}
     else:
-        form_action = "/schedules/create"
+        form_action = f"/schedules/create"
         name = ""
         selected_days = []
         times = {}
@@ -125,6 +125,30 @@ def schedule_edit(schedule_id: int):
     return render_template("schedule_edit.html", schedule=schedule, email=email,
                            form_action=form_action, name=name,
                            selected_days=selected_days, times=times)
+
+
+@app.route("/schedules/create", methods=["POST"])
+def schedule_create():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = storage.get_user(email)
+    if not user:
+        return "User not found", 404
+
+    schedule_data: Dict[str, str | None] = {
+        "name": request.form.get("name", "").strip() or "Default",
+        "Monday": request.form.get("time_Monday", "") or None,
+        "Tuesday": request.form.get("time_Tuesday", "") or None,
+        "Wednesday": request.form.get("time_Wednesday", "") or None,
+        "Thursday": request.form.get("time_Thursday", "") or None,
+        "Friday": request.form.get("time_Friday", "") or None,
+        "Saturday": request.form.get("time_Saturday", "") or None,
+        "Sunday": request.form.get("time_Sunday", "") or None,
+    }
+
+    storage.add_schedule(user.id, schedule_data)
+    return redirect("/schedules")
 
 
 @app.route("/schedules/<int:schedule_id>/save", methods=["POST"])

@@ -1,5 +1,6 @@
 .venv
 env.py
 *.db
+solicitations_cache.json
 __pycache__
 .DS_Store

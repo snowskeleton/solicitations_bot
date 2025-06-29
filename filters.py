@@ -3,11 +3,10 @@ from typing import List, Dict, Any
 from Solicitation import Solicitation  # Adjust import path as needed
 
 
-def filter_solicitations(solicitations: List[Solicitation], criteria: Dict[str, Any]) -> List[Solicitation]:
-    def evaluate(solicitation: Solicitation, node: Dict[str, Any]) -> bool:
+def evaluate_filter(criteria: Dict[str, Any], solicitation: Solicitation) -> bool:
+    def evaluate(node: Dict[str, Any]) -> bool:
         if "conditions" in node:
-            results = [evaluate(solicitation, cond)
-                       for cond in node["conditions"]]
+            results = [evaluate(cond) for cond in node["conditions"]]
             return all(results) if node["op"].upper() == "AND" else any(results)
         else:
             field = node.get("field")
@@ -29,4 +28,11 @@ def filter_solicitations(solicitations: List[Solicitation], criteria: Dict[str, 
 
             return not result if invert else result
 
-    return [s for s in solicitations if evaluate(s, criteria)]
+    return evaluate(criteria)
+
+
+def filter_solicitations(solicitations: List[Solicitation], filters: List[Dict[str, Any]]) -> List[Solicitation]:
+    return [
+        s for s in solicitations
+        if any(evaluate_filter(f["criteria"], s) for f in filters)
+    ]
