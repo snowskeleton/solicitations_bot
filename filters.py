@@ -4,6 +4,8 @@ from Solicitation import Solicitation  # Adjust import path as needed
 
 
 def evaluate_filter(criteria: Dict[str, Any], solicitation: Solicitation) -> bool:
+    if isinstance(criteria, str):
+        criteria = json.loads(criteria)
     def evaluate(node: Dict[str, Any]) -> bool:
         if "conditions" in node:
             results = [evaluate(cond) for cond in node["conditions"]]

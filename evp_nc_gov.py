@@ -9,13 +9,13 @@ import os
 from seleniumbase import Driver
 
 from Solicitation import Solicitation
+from filters import evaluate_filter
 from storage import User
+from storage import get_filters_for_user
 from emailer import send_summary_email
 
 
 def fetch_solicitation_data(user: User, use_cache: bool = False) -> list[Solicitation]:
-    from filters import evaluate_filter
-    from storage import get_filters_for_user
 
     if use_cache and os.path.exists("solicitations_cache.json"):
         with open("solicitations_cache.json", "r") as f:
@@ -86,14 +86,29 @@ def fetch_solicitation_data(user: User, use_cache: bool = False) -> list[Solicit
     records = [Solicitation.from_dict(record)
                for record in data.get("Records", [])]
 
-    filters = get_filters_for_user(user.id)
-    if filters:
-        records = [r for r in records if any(
-            evaluate_filter(f.criteria, r) for f in filters)]
+    # filters = get_filters_for_user(user.id)
+    # if filters:
+    #     records = [r for r in records if any(
+    #         evaluate_filter(f.criteria, r) for f in filters)]
 
     return records
 
 
+def filter_solicitations(records: list[Solicitation], user: User) -> list[Solicitation]:
+    from filters import evaluate_filter
+
+    filters = get_filters_for_user(user.id)
+    if not filters:
+        return records
+
+    filtered_records = []
+    for record in records:
+        if any(evaluate_filter(f.criteria, record) for f in filters):
+            filtered_records.append(record)
+
+    return filtered_records
+
 def run_scraper_job(user: User):
     records = fetch_solicitation_data(user, use_cache=True)
-    send_summary_email(user.email, records)
+    filtered_records = filter_solicitations(records, user)
+    send_summary_email(user.email, filtered_records)
