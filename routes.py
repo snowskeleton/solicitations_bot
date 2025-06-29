@@ -1,3 +1,5 @@
+from typing import Dict
+
 from flask import Flask, request, redirect, render_template, session
 
 from emailer import send_email
@@ -38,7 +40,7 @@ def add_user():
     new_email = request.form.get("email")
     if new_email:
         storage.add_user(new_email, is_admin=False)
-    return redirect("/admin", email=email)
+    return redirect("/admin")
 
 
 @app.route("/login", methods=["GET"])
@@ -81,6 +83,8 @@ def schedule():
     if not email:
         return redirect("/login")
     user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
     schedules = storage.get_schedules_for_user(user.id)
     return render_template("schedules.html", schedules=schedules, email=email)
 
@@ -134,8 +138,8 @@ def schedule_save(schedule_id: int):
     if not schedule or schedule.user_id != user.id:
         return "Schedule not found or access denied", 404
 
-    updated_data = {
-        "name": request.form.get("name", "").strip(),
+    updated_data: Dict[str, str | None] = {
+        "name": request.form.get("name", "").strip() or "Default",
         "Monday": request.form.get("time_Monday", "") or None,
         "Tuesday": request.form.get("time_Tuesday", "") or None,
         "Wednesday": request.form.get("time_Wednesday", "") or None,
