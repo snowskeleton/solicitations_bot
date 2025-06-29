@@ -4,6 +4,18 @@ from dataclasses import dataclass
 from typing import Dict, Optional, List, Any, cast
 
 
+FIELD_LABELS = {
+    "evp_name": "Title",
+    "evp_description": "Description",
+    "evp_solicitationnbr": "Solicitation Number",
+    "evp_posteddate": "Posted Date",
+    "evp_opendate": "Open Date",
+    "owningbusinessunit": "Department",
+    "statuscode": "Status",
+    "statecode": "State",
+    # ... add more as needed
+}
+
 @dataclass
 class Solicitation:
     Id: str
@@ -40,6 +52,17 @@ class Solicitation:
             }
         )
     
+    @classmethod
+    def get_filterable_fields(cls) -> List[Dict[str, str]]:
+        return sorted(
+            [
+                {"field": field, "label": FIELD_LABELS[field]}
+                for field in inspect.signature(cls).parameters
+                if field in FIELD_LABELS
+            ],
+            key=lambda x: x["label"]
+        )
+
     def __str__(self):
         return f"Solicitation(Id={self.Id}, EntityName={self.EntityName}, " \
                f"statecode={self.statecode}, evp_opendate={self.evp_opendate}, " \

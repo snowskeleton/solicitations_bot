@@ -1,3 +1,4 @@
+# Filter model
 import sqlite3
 import os
 from dataclasses import dataclass
@@ -10,14 +11,12 @@ from env import MAGIC_LINK_EXPIRY_SECONDS
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'solicitations.db')
 
-# User model
 @dataclass
 class User:
     id: int
     email: str
     is_admin: bool = False
 
-# Token model
 @dataclass
 class MagicLinkToken:
     token: str
@@ -25,7 +24,6 @@ class MagicLinkToken:
     expires_at: float
 
 
-# Schedule model
 @dataclass
 class Schedule:
     id: int
@@ -39,6 +37,13 @@ class Schedule:
     saturday: Optional[str]
     sunday: Optional[str]
 
+
+@dataclass
+class Filter:
+    id: int
+    user_id: int
+    name: str
+    criteria: str
 
 # Persistent storage using SQLite
 def setup_db():
@@ -141,7 +146,52 @@ def list_users() -> List[User]:
     return users
 
 
-# Schedule-related functions
+# Filters
+def get_filters_for_user(user_id: int) -> List[Filter]:
+    filters: List[Filter] = []
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, user_id, name, criteria FROM filters WHERE user_id = ?', (user_id,))
+        for row in cursor.fetchall():
+            filters.append(Filter(*row))
+    return filters
+
+
+def get_filter_by_id(filter_id: int) -> Optional[Filter]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, user_id, name, criteria FROM filters WHERE id = ?', (filter_id,))
+        row = cursor.fetchone()
+        return Filter(*row) if row else None
+
+
+def add_filter(user_id: int, name: str, criteria: str) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO filters (user_id, name, criteria) VALUES (?, ?, ?)', (user_id, name, criteria))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_filter(filter_id: int, name: str, criteria: str) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE filters SET name = ?, criteria = ? WHERE id = ?', (name, criteria, filter_id))
+        conn.commit()
+
+
+def delete_filter(filter_id: int) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM filters WHERE id = ?', (filter_id,))
+        conn.commit()
+
+
+# Schedules
 def get_schedules_for_user(user_id: int) -> List[Schedule]:
     schedules: List[Schedule] = []
     with sqlite3.connect(DB_PATH) as conn:
@@ -188,7 +238,6 @@ def add_schedule(user_id: int, schedule: Dict[str, str]) -> int:
         return cursor.lastrowid
 
 
-# Update a schedule by id with given updates
 def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
     if not updates:
         return

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Your Filters</h2>
+
+<ul>
+    {% for filter in filters %}
+        <li>
+            <strong>{{ filter.name }}</strong>
+            <form action="{{ url_for('delete_filter', filter_id=filter.id) }}" method="post" style="display:inline;">
+                <button type="submit">Delete</button>
+            </form>
+            <button type="button" onclick='loadExistingFilterJson({{ filter.criteria | tojson | safe }}, "{{ filter.name }}", "{{ filter.id }}")'>
+                Edit
+            </button>
+        </li>
+    {% endfor %}
+</ul>
+
+<h3>Create or Update Filter</h3>
+<form action="{{ url_for('create_filter') }}" method="post">
+    <label for="name">Filter Name:</label>
+    <input type="text" name="name" id="filter-name" required><br>
+    <input type="hidden" name="filter_id" id="filter-id">
+
+    <label for="criteria-gui">Criteria:</label><br>
+    <div id="criteria-gui" style="margin-bottom: 1em;">
+        <div id="criteria-builder"></div>
+    </div>
+    <label for="criteria">Criteria (JSON format):</label><br>
+    <textarea name="criteria" rows="10" cols="50" required>{"op": "AND", "conditions": []}</textarea><br>
+
+    <button type="submit">Save</button>
+    <button type="button" onclick="discardChanges()">Discard</button>
+</form>
+
+<script>
+    let criteria = {"op": "AND", "conditions": []};
+
+    function loadExistingFilterJson(json, name, id) {
+        try {
+            if (typeof json === "string") {
+                criteria = JSON.parse(json);
+            } else {
+                criteria = json;
+            }
+            if (typeof name !== "undefined") {
+                document.getElementById('filter-name').value = name;
+            }
+            if (typeof id !== "undefined") {
+                document.getElementById('filter-id').value = id;
+            }
+            renderCriteria();
+        } catch (e) {
+            alert("Failed to load filter");
+        }
+    }
+
+    function loadExistingFilter(selectEl) {
+        if (!selectEl.value) return;
+        try {
+            criteria = JSON.parse(selectEl.value);
+            renderCriteria();
+        } catch (e) {
+            alert("Failed to load filter");
+        }
+    }
+
+    function renderCriteria() {
+        const builder = document.getElementById('criteria-builder');
+        builder.innerHTML = '';
+        builder.appendChild(renderGroup(criteria));
+        updateTextarea();
+    }
+
+    function renderGroup(group) {
+        const groupDiv = document.createElement('div');
+        groupDiv.style.border = "1px solid #ccc";
+        groupDiv.style.margin = "5px";
+        groupDiv.style.padding = "5px";
+
+        const opSelect = document.createElement('select');
+        opSelect.innerHTML = `
+            <option value="AND" ${group.op === 'AND' ? 'selected' : ''}>All</option>
+            <option value="OR" ${group.op === 'OR' ? 'selected' : ''}>Any</option>`;
+        opSelect.onchange = () => {
+            group.op = opSelect.value;
+            updateTextarea();
+        };
+        groupDiv.appendChild(opSelect);
+
+        const addConditionBtn = document.createElement('button');
+        addConditionBtn.type = "button";
+        addConditionBtn.textContent = "+ Single Condition";
+        addConditionBtn.onclick = () => {
+            group.conditions.push({field: "", operator: "contains", invert: false, value: ""});
+            renderCriteria();
+        };
+        groupDiv.appendChild(addConditionBtn);
+
+        const addGroupBtn = document.createElement('button');
+        addGroupBtn.type = "button";
+        addGroupBtn.textContent = "+ Conditional Group";
+        addGroupBtn.onclick = () => {
+            group.conditions.push({op: "AND", conditions: []});
+            renderCriteria();
+        };
+        groupDiv.appendChild(addGroupBtn);
+
+        group.conditions.forEach((cond, index) => {
+            const condDiv = document.createElement('div');
+            condDiv.style.marginLeft = "10px";
+            condDiv.style.marginTop = "4px";
+            // Remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = "button";
+            removeBtn.textContent = "Remove";
+            removeBtn.style.marginRight = "6px";
+            removeBtn.onclick = () => {
+                group.conditions.splice(index, 1);
+                renderCriteria();
+            };
+            condDiv.appendChild(removeBtn);
+            if (cond.op && Array.isArray(cond.conditions)) {
+                const nestedGroup = renderGroup(cond);
+                nestedGroup.style.marginLeft = "20px";
+                condDiv.appendChild(nestedGroup);
+            } else {
+                const fieldSelect = document.createElement('select');
+                {% for field in fields %}
+                const opt{{ loop.index }} = document.createElement('option');
+                opt{{ loop.index }}.value = "{{ field.field }}";
+                opt{{ loop.index }}.textContent = "{{ field.label }}";
+                if (cond.field === "{{ field.field }}") opt{{ loop.index }}.selected = true;
+                fieldSelect.appendChild(opt{{ loop.index }});
+                {% endfor %}
+                fieldSelect.onchange = () => {
+                    cond.field = fieldSelect.value;
+                    updateTextarea();
+                };
+                fieldSelect.style.marginRight = "4px";
+
+                const polarity = document.createElement('select');
+                ["does", "does not"].forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if ((opt === "does" && cond.invert === false) ||
+                        (opt === "does not" && cond.invert === true)) {
+                        option.selected = true;
+                    }
+                    polarity.appendChild(option);
+                });
+                polarity.onchange = updateOperator;
+                polarity.style.marginRight = "4px";
+
+                const baseOp = document.createElement('select');
+                ["contains", "equals", "startsWith", "endsWith"].forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (cond.operator === opt) option.selected = true;
+                    baseOp.appendChild(option);
+                });
+                baseOp.onchange = updateOperator;
+                baseOp.style.marginRight = "4px";
+
+                function updateOperator() {
+                    cond.invert = polarity.value === "does not";
+                    cond.operator = baseOp.value;
+                    updateTextarea();
+                }
+
+                const value = document.createElement('input');
+                value.placeholder = "value";
+                value.value = cond.value || '';
+                value.oninput = () => { cond.value = value.value; updateTextarea(); };
+                value.style.marginRight = "4px";
+
+                condDiv.appendChild(fieldSelect);
+                condDiv.appendChild(polarity);
+                condDiv.appendChild(baseOp);
+                condDiv.appendChild(value);
+            }
+            groupDiv.appendChild(condDiv);
+        });
+
+        return groupDiv;
+    }
+
+    function updateTextarea() {
+        document.querySelector('textarea[name="criteria"]').value = JSON.stringify(criteria, null, 2);
+    }
+
+    function addCondition() {
+        criteria.conditions.push({field: "", operator: "contains", invert: false, value: ""});
+        renderCriteria();
+    }
+
+    function addGroup() {
+        criteria.conditions.push({op: "AND", conditions: []});
+        renderCriteria();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        try {
+            criteria = JSON.parse(document.querySelector('textarea[name="criteria"]').value);
+        } catch (e) {
+            criteria = {"op": "AND", "conditions": []};
+        }
+        renderCriteria();
+    });
+function discardChanges() {
+    const nameInput = document.getElementById('filter-name');
+    const idInput = document.getElementById('filter-id');
+    const name = nameInput.value;
+    const id = idInput.value;
+    const filter = Array.from(document.querySelectorAll('button')).find(btn => {
+        return btn.textContent === 'Edit' &&
+               btn.getAttribute('onclick') &&
+               btn.getAttribute('onclick').includes(id);
+    });
+    if (filter) {
+        // Use the button's onclick to extract the criteria again
+        const onclick = filter.getAttribute('onclick');
+        const jsonMatch = onclick.match(/loadExistingFilterJson\((.+),/);
+        if (jsonMatch && jsonMatch[1]) {
+            const jsonStr = jsonMatch[1];
+            try {
+                const parsed = JSON.parse(jsonStr);
+                loadExistingFilterJson(parsed, name, id);
+            } catch {
+                alert("Failed to parse saved filter data.");
+            }
+        }
+    } else {
+        criteria = {"op": "AND", "conditions": []};
+        nameInput.value = "";
+        idInput.value = "";
+        renderCriteria();
+    }
+}
+</script>
+{% endblock %}

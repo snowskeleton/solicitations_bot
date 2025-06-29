@@ -2,9 +2,11 @@ from typing import Dict
 
 from flask import Flask, request, redirect, render_template, session
 
+import storage
+
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
-import storage
+from Solicitation import Solicitation
 
 
 app = Flask(__name__)
@@ -151,3 +153,78 @@ def schedule_save(schedule_id: int):
 
     storage.update_schedule(schedule_id, updated_data)
     return redirect("/schedules")
+
+
+# Route to trigger the "run now" functionality for the logged-in user
+@app.route("/run", methods=["POST"])
+def run_scraper():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    from evp_nc_gov import run_scraper_job
+    run_scraper_job(user)
+
+    return redirect("/")
+
+# Filter management routes
+
+
+@app.route("/filters", methods=["GET"])
+def filters():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    user_filters = storage.get_filters_for_user(user.id)
+    return render_template("filters.html", filters=user_filters, email=email, fields=Solicitation.get_filterable_fields())
+
+
+@app.route("/filters/create", methods=["POST"])
+def create_filter():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    filter_id = request.form.get("filter_id")
+    name = request.form.get("name")
+    criteria = request.form.get("criteria")
+
+    if not name or not criteria:
+        return "Missing name or criteria", 400
+
+    if filter_id:
+        storage.update_filter(int(filter_id), name, criteria)
+    else:
+        storage.add_filter(user.id, name, criteria)
+    return redirect("/filters")
+
+
+@app.route("/filters/<int:filter_id>/delete", methods=["POST"])
+def delete_filter(filter_id: int):
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    filter = storage.get_filter_by_id(filter_id)
+    if not filter or filter.user_id != user.id:
+        return "Filter not found or access denied", 404
+
+    storage.delete_filter(filter_id)
+    return redirect("/filters")

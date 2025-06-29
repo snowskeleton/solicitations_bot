@@ -8,26 +8,23 @@ import json
 from seleniumbase import Driver
 
 from Solicitation import Solicitation
+from storage import User
 from emailer import send_summary_email
 
 
-def run_scraper_job():
+def run_scraper_job(user: User):
     # Optional: Run headless
     from selenium.webdriver.chrome.options import Options
 
     options = Options()
     options.add_argument("--headless=new")
 
-    import os
-    prefs = {
-        "download.default_directory": os.path.abspath("."),  # download to current project directory
-        "download.prompt_for_download": False,
-        "download.directory_upgrade": True,
-        "safebrowsing.enabled": True
-    }
-    options.add_experimental_option("prefs", prefs)
-
-    driver = Driver(headless=True, options=options)
+    driver = Driver(
+        headless=True,
+        agent="user",
+        browser="chrome",
+        use_wire=True
+    )
 
     # Step 1: Visit page, trigger JS-driven API call
     driver.get("https://evp.nc.gov/solicitations/")
@@ -72,7 +69,7 @@ def run_scraper_job():
                     data = resp.json()
 
                 records = [Solicitation.from_dict(record) for record in data.get("Records", [])]
-                send_summary_email("isaac@snowskeleton.net", records)
+                send_summary_email(user.email, records)
 
                 break
 
