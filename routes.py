@@ -26,7 +26,7 @@ def admin_console():
     if not email or email != ADMIN_EMAIL:
         return redirect("/login")
 
-    return render_template("admin.html", users=storage.list_users())
+    return render_template("admin.html", users=storage.list_users(), email=email)
 
 
 @app.route("/admin/add-user", methods=["POST"])
@@ -38,7 +38,7 @@ def add_user():
     new_email = request.form.get("email")
     if new_email:
         storage.add_user(new_email, is_admin=False)
-    return redirect("/admin")
+    return redirect("/admin", email=email)
 
 
 @app.route("/login", methods=["GET"])
@@ -50,14 +50,14 @@ def login_form():
 def send_magic_link():
     email = request.form.get("email")
     if not email:
-        return "Email required", 400
+        return render_template("base.html", error="Email required")
     if not storage.get_user(email) and not email == ADMIN_EMAIL:
-        return "User not found. Please check your spelling or contact your admin.", 404
+        return render_template("base.html", error="User not found. Please check your spelling or contact your admin.")
 
     token = storage.generate_magic_token(email)
     link = f"{URI}/magic-login?token={token}"
     send_email(email, "Solicitations Login Link", f"Click here to log in: {link}")
-    return f"Login link sent to {email}"
+    return render_template("base.html", error=f"Login link sent to {email}")
 
 
 @app.route("/magic-login")
@@ -75,11 +75,75 @@ def magic_login():
     return redirect("/")
 
 
-@app.route("/schedule", methods=["GET"])
+@app.route("/schedules", methods=["GET"])
 def schedule():
     email = session.get("email")
     if not email:
         return redirect("/login")
     user = storage.get_user(email)
     schedules = storage.get_schedules_for_user(user.id)
-    return render_template("schedule.html", schedules=schedules)
+    return render_template("schedules.html", schedules=schedules, email=email)
+
+
+@app.route("/schedules/<int:schedule_id>/edit", methods=["GET"])
+def schedule_edit(schedule_id: int):
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = storage.get_user(email)
+    if not user:
+        return "User not found", 404
+
+    if schedule_id == 0:
+        # schedule starts index from 1, so this is safe
+        schedule = None
+    else:
+        schedule = storage.get_schedule_by_id(schedule_id)
+        if not schedule or schedule.user_id != user.id:
+            return "Schedule not found or access denied", 404
+
+    if schedule:
+        form_action = f"/schedules/{schedule_id}/save"
+        name = schedule.name
+        day_fields = ["Monday", "Tuesday", "Wednesday",
+                      "Thursday", "Friday", "Saturday", "Sunday"]
+        selected_days = [
+            day for day in day_fields if getattr(schedule, day.lower())]
+        times = {day: getattr(schedule, day.lower()) for day in selected_days}
+    else:
+        form_action = "/schedules/create"
+        name = ""
+        selected_days = []
+        times = {}
+
+    return render_template("schedule_edit.html", schedule=schedule, email=email,
+                           form_action=form_action, name=name,
+                           selected_days=selected_days, times=times)
+
+
+@app.route("/schedules/<int:schedule_id>/save", methods=["POST"])
+def schedule_save(schedule_id: int):
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = storage.get_user(email)
+    if not user:
+        return "User not found", 404
+
+    schedule = storage.get_schedule_by_id(schedule_id)
+    if not schedule or schedule.user_id != user.id:
+        return "Schedule not found or access denied", 404
+
+    updated_data = {
+        "name": request.form.get("name", "").strip(),
+        "Monday": request.form.get("time_Monday", "") or None,
+        "Tuesday": request.form.get("time_Tuesday", "") or None,
+        "Wednesday": request.form.get("time_Wednesday", "") or None,
+        "Thursday": request.form.get("time_Thursday", "") or None,
+        "Friday": request.form.get("time_Friday", "") or None,
+        "Saturday": request.form.get("time_Saturday", "") or None,
+        "Sunday": request.form.get("time_Sunday", "") or None,
+    }
+
+    storage.update_schedule(schedule_id, updated_data)
+    return redirect("/schedules")

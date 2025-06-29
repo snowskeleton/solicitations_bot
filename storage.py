@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 import secrets
 import time
 
@@ -31,7 +31,13 @@ class Schedule:
     id: int
     user_id: int
     name: str
-    time: str
+    monday: Optional[str]
+    tuesday: Optional[str]
+    wednesday: Optional[str]
+    thursday: Optional[str]
+    friday: Optional[str]
+    saturday: Optional[str]
+    sunday: Optional[str]
 
 
 # Persistent storage using SQLite
@@ -67,7 +73,13 @@ def setup_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
                 name TEXT,
-                time TEXT,
+                monday TEXT,
+                tuesday TEXT,
+                wednesday TEXT,
+                thursday TEXT,
+                friday TEXT,
+                saturday TEXT,
+                sunday TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         ''')
@@ -76,11 +88,14 @@ def setup_db():
 def add_user(email: str, is_admin: bool = False) -> int:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute('REPLACE INTO users (email, is_admin) VALUES (?, ?)',
-                       (email, int(is_admin)))
+        cursor.execute(
+            'INSERT OR IGNORE INTO users (email, is_admin) VALUES (?, ?)', (email, int(is_admin)))
+        cursor.execute(
+            'UPDATE users SET is_admin = ? WHERE email = ?', (int(is_admin), email))
         conn.commit()
         cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
         return cursor.fetchone()[0]
+
 
 def get_user(email: str) -> Optional[User]:
     with sqlite3.connect(DB_PATH) as conn:
@@ -132,16 +147,62 @@ def get_schedules_for_user(user_id: int) -> List[Schedule]:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'SELECT id, user_id, name, time FROM schedules WHERE user_id = ?', (user_id,))
+            '''SELECT id, user_id, name, monday, tuesday, wednesday, thursday, friday, saturday, sunday
+               FROM schedules WHERE user_id = ?''', (user_id,))
         for row in cursor.fetchall():
             schedules.append(Schedule(*row))
     return schedules
 
 
-def add_schedule(user_id: int, name: str, time: str) -> int:
+def get_schedule_by_id(schedule_id: int) -> Optional[Schedule]:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO schedules (user_id, name, time) VALUES (?, ?, ?)', (user_id, name, time))
+            '''SELECT id, user_id, name, monday, tuesday, wednesday, thursday, friday, saturday, sunday
+               FROM schedules WHERE id = ?''', (schedule_id,))
+        row = cursor.fetchone()
+        print(row)
+        return Schedule(*row) if row else None
+
+
+def add_schedule(user_id: int, schedule: Dict[str, str]) -> int:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO schedules (
+                user_id, name, monday, tuesday, wednesday,
+                thursday, friday, saturday, sunday
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_id,
+            schedule.get("name", ""),
+            schedule.get("Monday"),
+            schedule.get("Tuesday"),
+            schedule.get("Wednesday"),
+            schedule.get("Thursday"),
+            schedule.get("Friday"),
+            schedule.get("Saturday"),
+            schedule.get("Sunday")
+        ))
         conn.commit()
         return cursor.lastrowid
+
+
+# Update a schedule by id with given updates
+def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
+    if not updates:
+        return
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        fields = []
+        values = []
+        for key, value in updates.items():
+            fields.append(f"{key.lower()} = ?")
+            values.append(value)
+        values.append(schedule_id)
+        cursor.execute(f'''
+            UPDATE schedules
+            SET {", ".join(fields)}
+            WHERE id = ?
+        ''', values)
+        conn.commit()

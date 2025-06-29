@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>Add a New Schedule</h3>
+<form action="{{ form_action }}" method="post">
+    <fieldset>
+        <legend>Select Days and Times</legend>
+        <input type="text" name="name" value="{{ name }}"> {{ name }}
+        {% for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] %}
+        <div>
+            <label>
+                <input type="checkbox" name="days" value="{{ day }}" {% if day in selected_days %}checked{% endif %}> {{ day }}
+            </label>
+            <input type="time" name="time_{{ day }}" value="{{ times.get(day, '') }}">
+        </div>
+        {% endfor %}
+    </fieldset>
+    <button type="button" onclick="location.href='{{ url_for('schedule') }}'">Back</button>
+    <button type="submit">Save Schedule</button>
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[type=checkbox][name=days]').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                const timeInput = this.closest('div').querySelector('input[type=time]');
+                if (timeInput && !this.checked) {
+                    timeInput.value = '';
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

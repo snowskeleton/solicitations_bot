@@ -5,14 +5,12 @@
 {% if schedules %}
     <ul>
     {% for schedule in schedules %}
-        <li>{{ schedule.name }} — {{ schedule.time }}</li>
+        <li><a href="/schedules/{{ schedule.id }}/edit">{{ schedule.name }}</a></li>
     {% endfor %}
     </ul>
 {% else %}
     <p>You don't have any schedules set up.</p>
 {% endif %}
 
-<form action="/schedule/new" method="get">
-    <button type="submit">Add New Schedule</button>
-</form>
+<a href="/schedules/0/edit"><button type="button">Add New Schedule</button></a>
 {% endblock %}
