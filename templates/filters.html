@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 
 {% block content %}
+
+<form action="{{ url_for('fetch_data_for_filters') }}" method="post" style="display:inline;">
+    <button type="submit">Fetch Data</button>
+</form>
+
+<form action="{{ url_for('test_filters') }}" method="post" style="display:inline;">
+    <button type="submit">Run Filters</button>
+</form>
+
 <h2>Your Filters</h2>
 
 <ul>
@@ -16,7 +25,6 @@
         </li>
     {% endfor %}
 </ul>
-
 <h3>Create or Update Filter</h3>
 <form action="{{ url_for('create_filter') }}" method="post">
     <label for="name">Filter Name:</label>
@@ -33,6 +41,11 @@
     <button type="submit">Save</button>
     <button type="button" onclick="discardChanges()">Discard</button>
 </form>
+
+{% if matches %}
+    {{ matches.to_html() | safe }}
+{% endif %}
+
 
 <script>
     let criteria = {"op": "AND", "conditions": []};

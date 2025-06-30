@@ -3,11 +3,13 @@ import inspect
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Any, cast
 
+from storage import Filter
+
 
 FIELD_LABELS = {
     "evp_name": "Title",
     "evp_description": "Description",
-    "evp_solicitationnbr": "Solicitation Number",
+    # "evp_solicitationnbr": "Solicitation Number",
     "evp_posteddate": "Posted Date",
     "evp_opendate": "Open Date",
     "owningbusinessunit": "Department",
@@ -70,3 +72,41 @@ class Solicitation:
                f"evp_solicitationid={self.evp_solicitationid}, evp_name={self.evp_name}, " \
                f"statuscode={self.statuscode}, evp_solicitationnbr={self.evp_solicitationnbr}, " \
                f"evp_description={self.evp_description})"
+
+    def format_html(self) -> str:
+        job_link = f"https://evp.nc.gov/solicitations/details/?id={self.Id}"
+        lines = [
+            f'<li><strong>{FIELD_LABELS.get("evp_name", "Name")}:</strong> <a href="{job_link}">{self.evp_name}</a><br>']
+        for field, label in FIELD_LABELS.items():
+            if field == "evp_name":
+                continue
+            value = getattr(self, field, "")
+            if value:
+                lines.append(f"<strong>{label}:</strong> {value}<br>")
+        lines.append("</li>")
+        return "\n".join(lines)
+
+
+class Solicitations(List[Solicitation]):
+
+    def to_html(self) -> str:
+        if not self:
+            return "No solicitations found."
+
+        body_lines: List[str] = []
+        body_lines.append("<h2>Solicitations Summary:</h2><ul>")
+        for s in self:
+            body_lines.append(s.format_html())
+        body_lines.append("</ul>")
+        return "\n".join(body_lines)
+
+    def filter(self, filters: List[Filter]) -> "Solicitations":
+        from filters import evaluate_filter
+        if not filters:
+            return self
+
+        filtered_records = [
+            record for record in self
+            if any(evaluate_filter(f.criteria, record) for f in filters)
+        ]
+        return Solicitations(filtered_records)

@@ -7,6 +7,8 @@ import storage
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
 from Solicitation import Solicitation
+from evp_nc_gov import filter_cached_solicitations
+# from evp_nc_gov import download_cached_records, filter_solicitations
 
 
 app = Flask(__name__)
@@ -252,3 +254,37 @@ def delete_filter(filter_id: int):
 
     storage.delete_filter(filter_id)
     return redirect("/filters")
+
+
+@app.route("/filters/fetch", methods=["POST"])
+def fetch_data_for_filters():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    # download_cached_records()
+    return redirect("/filters")
+
+
+@app.route("/filters/test", methods=["POST"])
+def test_filters():
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+
+    user = storage.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    filters = storage.get_filters_for_user(user.id)
+    # records = download_cached_records()
+    matched = filter_cached_solicitations(user)
+    # matched = [
+    #     record for record in records
+    #     if any(filter_solicitations([record], user, [f])[0] for f in filters)
+    # ]
+    return render_template("filters.html", filters=filters, email=email, fields=Solicitation.get_filterable_fields(), matches=matched)
