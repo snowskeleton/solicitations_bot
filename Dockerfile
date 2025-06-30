@@ -6,9 +6,9 @@ WORKDIR /app
 
 # Install dependencies
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
-
-ENV PATH="/home/seluser/.local/bin:$PATH"
+USER root
+RUN pip install --no-cache-dir -r requirements.txt
+USER seluser
 
 # Copy application code
 COPY . .
