@@ -1,19 +1,19 @@
 # Use an official Python runtime
 FROM selenium/standalone-chrome AS base_image
 
+USER root
 # Set work directory
 WORKDIR /app
-
-# Install dependencies
-COPY requirements.txt .
-USER root
-RUN pip install --no-cache-dir -r requirements.txt
-
-RUN touch /app/solicitations.db && chown seluser:seluser /app/solicitations.db
-USER seluser
-
 # Copy application code
 COPY . .
+RUN chown -R seluser:seluser /app
+RUN chmod 644 /app/solicitations.db
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set user expected by Selenium
+USER seluser
 
 # Expose port if needed (adjust based on your Flask app)
 EXPOSE 5002
