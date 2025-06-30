@@ -8,6 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 USER root
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN touch /app/solicitations.db && chown seluser:seluser /app/solicitations.db
 USER seluser
 
 # Copy application code
