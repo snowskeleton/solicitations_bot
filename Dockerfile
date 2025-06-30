@@ -1,5 +1,5 @@
 # Use an official Python runtime
-FROM selenium/standalone-chrome as base_image
+FROM selenium/standalone-chrome AS base_image
 
 # Set work directory
 WORKDIR /app
