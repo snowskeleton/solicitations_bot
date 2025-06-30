@@ -9,17 +9,17 @@ import os
 from seleniumbase import Driver
 
 from Solicitation import Solicitation, Solicitations
-from filters import evaluate_filter
+# from filters import evaluate_filter
 from storage import User
 from storage import get_filters_for_user
 from emailer import send_summary_email
 
 
 def fetch_solicitation_data() -> str:
-    from selenium.webdriver.chrome.options import Options
+    # from selenium.webdriver.chrome.options import Options
 
-    options = Options()
-    options.add_argument("--headless=new")
+    # options = Options()
+    # options.add_argument("--headless=new")
 
     driver = Driver(
         headless=True,
