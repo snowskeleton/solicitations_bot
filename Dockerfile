@@ -1,5 +1,5 @@
 # Use an official Python runtime
-FROM python:3.11-slim
+FROM seleniumbase/seleniumbase:4.24.1
 
 # Set work directory
 WORKDIR /app
