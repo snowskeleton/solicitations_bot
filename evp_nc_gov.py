@@ -99,6 +99,6 @@ def filter_cached_solicitations(user: User) -> Solicitations:
 
 
 def run_scraper_job(user: User):
-    # fetch_solicitation_data()
+    fetch_solicitation_data()
     filtered_records = filter_cached_solicitations(user)
     send_summary_email(user.email, filtered_records)

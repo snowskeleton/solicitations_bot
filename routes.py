@@ -7,7 +7,7 @@ import storage
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
 from Solicitation import Solicitation
-from evp_nc_gov import filter_cached_solicitations
+from evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
 # from evp_nc_gov import download_cached_records, filter_solicitations
 
 
@@ -266,7 +266,7 @@ def fetch_data_for_filters():
     if not user:
         return redirect("/login")
 
-    # download_cached_records()
+    fetch_solicitation_data()
     return redirect("/filters")
 
 
