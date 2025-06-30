@@ -1,0 +1,12 @@
+services:
+  solicitationsbot:
+    build: .
+    container_name: solicitationsbot
+    ports:
+      - "5002:5002"
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - /etc/localtime:/etc/localtime:ro
