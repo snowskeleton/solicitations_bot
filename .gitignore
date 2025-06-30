@@ -2,5 +2,6 @@
 env.py
 *.db
 solicitations_cache.json
+downloaded_files
 __pycache__
 .DS_Store
