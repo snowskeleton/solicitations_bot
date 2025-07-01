@@ -140,13 +140,17 @@
                 condDiv.appendChild(nestedGroup);
             } else {
                 const fieldSelect = document.createElement('select');
-                {% for field in fields %}
+                const defaultOpt = document.createElement('option');
+                defaultOpt.value = "";
+                defaultOpt.textContent = "Please select";
+                fieldSelect.appendChild(defaultOpt);
+{% for field in fields %}
                 const opt{{ loop.index }} = document.createElement('option');
                 opt{{ loop.index }}.value = "{{ field.field }}";
                 opt{{ loop.index }}.textContent = "{{ field.label }}";
                 if (cond.field === "{{ field.field }}") opt{{ loop.index }}.selected = true;
                 fieldSelect.appendChild(opt{{ loop.index }});
-                {% endfor %}
+{% endfor %}
                 fieldSelect.onchange = () => {
                     cond.field = fieldSelect.value;
                     updateTextarea();

@@ -46,6 +46,17 @@ def add_user():
         storage.add_user(new_email, is_admin=False)
     return redirect("/admin")
 
+@app.route("/admin/impersonate", methods=["POST"])
+def impersonate_user():
+    email = session.get("email")
+    if not email or email != ADMIN_EMAIL:
+        return "Unauthorized", 403
+
+    impersonate_email = request.form.get("impersonate_email")
+    if impersonate_email and storage.get_user(impersonate_email):
+        session["email"] = impersonate_email
+    return redirect("/")
+
 
 @app.route("/login", methods=["GET"])
 def login_form():

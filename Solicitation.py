@@ -7,7 +7,7 @@ from storage import Filter
 
 
 FIELD_LABELS = {
-    "evp_name": "Title",
+    "evp_name": "Project Title",
     "evp_description": "Description",
     # "evp_solicitationnbr": "Solicitation Number",
     "evp_posteddate": "Posted Date",
