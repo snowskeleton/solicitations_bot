@@ -1,6 +1,6 @@
 import json
-from typing import List, Dict, Any
-from Solicitation import Solicitation, Solicitations  # Adjust import path as needed
+from typing import Dict, Any
+from Solicitation import Solicitation
 
 
 # def evaluate_filter(criteria: Dict[str, Any], solicitation) -> bool:
