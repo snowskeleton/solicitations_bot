@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+{% extends "base.html" %}
+{% block content %}
 <h1>Admin Console</h1>
 <form action="/admin/add-user" method="post">
     <input type="email" name="email" required>
@@ -10,3 +11,4 @@
         <li>{{ user.email }}{% if user.is_admin %} (admin){% endif %}</li>
     {% endfor %}
 </ul>
+{% endblock %}
