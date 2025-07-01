@@ -45,11 +45,11 @@ class Solicitation:
                 attribute_map[attr.get("Name")] = attr.get("DisplayValue")
 
         return cls(
-            Id=record.get("Id"),
-            EntityName=record.get("EntityName"),
-            **{
+            Id=record.get("Id", ""),
+            EntityName=record.get("EntityName", ""),
+            **{ # type: ignore[call-arg]
                 k: v
-                for k, v in attribute_map.items()
+                for k, v in attribute_map.items() # type: ignore[dict-item]
                 if k in inspect.signature(cls).parameters and k not in ('Id', 'EntityName')
             }
         )

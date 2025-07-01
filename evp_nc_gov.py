@@ -9,29 +9,20 @@ import os
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+from selenium.webdriver.chrome.service import Service
 
 from Solicitation import Solicitation, Solicitations
-# from filters import evaluate_filter
 from storage import User
 from storage import get_filters_for_user
 from emailer import send_summary_email
 
 
 def fetch_solicitation_data() -> str:
-    # from selenium.webdriver.chrome.options import Options
-
-    # options = Options()
-    # options.add_argument("--headless=new")
-
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
 
-    # caps = DesiredCapabilities.CHROME.copy()
-    # caps["goog:loggingPrefs"] = {"performance": "ALL"}
-
-    from selenium.webdriver.chrome.service import Service
 
     CHROMEDRIVER_PATH = "/usr/bin/chromedriver"  # Adjust if different in your Docker container
 
@@ -42,9 +33,6 @@ def fetch_solicitation_data() -> str:
     driver.get("https://evp.nc.gov/solicitations/")
     driver.implicitly_wait(5)
 
-    # Note: This relies on the Chrome DevTools Protocol logs, not seleniumbase's `.requests`
-    # The previous seleniumbase Driver supported `.requests`, which is not native to raw selenium
-    # If you need detailed request access, consider using something like undetected-chromedriver or browsermob-proxy
     data = None
     # Collect network requests from Chrome DevTools logs
     logs = driver.get_log("performance")

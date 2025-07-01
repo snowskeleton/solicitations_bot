@@ -4,7 +4,7 @@ from Solicitation import Solicitation, Solicitations  # Adjust import path as ne
 
 
 # def evaluate_filter(criteria: Dict[str, Any], solicitation) -> bool:
-def evaluate_filter(criteria: Dict[str, Any], solicitation: 'Solicitation') -> bool:
+def evaluate_filter(criteria: Dict[str, Any] | str, solicitation: 'Solicitation') -> bool:
     if isinstance(criteria, str):
         criteria = json.loads(criteria)
     def evaluate(node: Dict[str, Any]) -> bool:
@@ -32,10 +32,3 @@ def evaluate_filter(criteria: Dict[str, Any], solicitation: 'Solicitation') -> b
             return not result if invert else result
 
     return evaluate(criteria)
-
-
-def filter_solicitations(solicitations: Solicitations, filters: List[Dict[str, Any]]) -> Solicitations:
-    return [
-        s for s in solicitations
-        if any(evaluate_filter(f["criteria"], s) for f in filters)
-    ]
