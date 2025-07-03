@@ -4,8 +4,6 @@ from datetime import datetime, time as dt_time
 from storage import  has_run_today, mark_as_run, get_all_schedules, get_user_by_id
 from evp_nc_gov import run_scraper_job
 
-scheduler_thread = None
-scheduler_stop_event = threading.Event()
 
 def should_run(schedule_time_str: str) -> bool:
     now = datetime.now()
@@ -22,7 +20,7 @@ def scheduler_loop():
     print("Scheduler loop started")
     weekday_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
-    while not scheduler_stop_event.is_set():
+    while True:
         now = datetime.now()
         today_index = now.weekday()  # 0 = Monday, ..., 6 = Sunday
         today_field = weekday_fields[today_index]
@@ -51,17 +49,6 @@ def scheduler_loop():
         time.sleep(60)
 
 def start_scheduler():
-    global scheduler_thread
     print("Starting scheduler...")
     scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
     scheduler_thread.start()
-
-def restart_scheduler():
-    global scheduler_thread
-    if scheduler_thread and scheduler_thread.is_alive():
-        print("Stopping old scheduler thread")
-        scheduler_stop_event.set()
-        scheduler_thread.join()
-    print("Restarting scheduler...")
-    scheduler_stop_event.clear()
-    start_scheduler()
