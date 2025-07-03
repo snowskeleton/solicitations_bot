@@ -88,6 +88,13 @@ def setup_db():
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS job_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                schedule_id INTEGER NOT NULL,
+                run_date TEXT NOT NULL
+            )
+        ''')
         conn.commit()
 
 def add_user(email: str, is_admin: bool = False) -> int:
@@ -110,6 +117,24 @@ def get_user(email: str) -> Optional[User]:
         if row:
             return User(id=row[0], email=row[1], is_admin=bool(row[2]))
         return None
+
+def get_user_by_id(id: int) -> Optional[User]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, email, is_admin FROM users WHERE id = ?', (id,))
+        row = cursor.fetchone()
+        if row:
+            return User(id=row[0], email=row[1], is_admin=bool(row[2]))
+        return None
+
+def get_all_users() -> List[User]:
+    users: List[User] = []
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, email, is_admin FROM users')
+        for row in cursor.fetchall():
+            users.append(User(id=row[0], email=row[1], is_admin=bool(row[2])))
+    return users
 
 def generate_magic_token(email: str) -> str:
     token = secrets.token_urlsafe(32)
@@ -255,3 +280,33 @@ def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
             WHERE id = ?
         ''', values)
         conn.commit()
+
+def has_run_today(schedule_id: int, date_str: str) -> bool:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1 FROM job_runs WHERE schedule_id = ? AND run_date = ?', (schedule_id, date_str))
+        return cursor.fetchone() is not None
+
+def mark_as_run(schedule_id: int, date_str: str) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO job_runs (schedule_id, run_date) VALUES (?, ?)', (schedule_id, date_str))
+        conn.commit()
+
+def get_all_schedules() -> List[Schedule]:
+    schedules: List[Schedule] = []
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, user_id, name, monday, tuesday, wednesday, thursday, friday, saturday, sunday
+            FROM schedules
+        ''')
+        for row in cursor.fetchall():
+            schedules.append(Schedule(*row))
+    return schedules
+
+def get_all_schedule_user_ids() -> List[int]:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT user_id FROM schedules')
+        return [row[0] for row in cursor.fetchall()]
