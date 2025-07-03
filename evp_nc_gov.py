@@ -6,57 +6,53 @@ from io import BytesIO
 import json
 import os
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.chrome.service import Service
+from seleniumbase import Driver
 
 from Solicitation import Solicitation, Solicitations
+# from filters import evaluate_filter
 from storage import User
 from storage import get_filters_for_user
 from emailer import send_summary_email
 
 
 def fetch_solicitation_data() -> str:
+    from selenium.webdriver.chrome.options import Options
+
     options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--headless=new")
 
+    print("Starting Selenium driver...")
+    driver = Driver(
+        headless=True,
+        agent="user",
+        browser="chrome",
+        use_wire=True,
+        # no_sandbox=False,
+        remote_debug=True
+    )
 
-    CHROMEDRIVER_PATH = "/usr/bin/chromedriver"  # Adjust if different in your Docker container
-
-    service = Service(executable_path=CHROMEDRIVER_PATH)
-    options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
-    driver = webdriver.Chrome(service=service, options=options)
-
+    print("Navigating to the solicitations page...")
     driver.get("https://evp.nc.gov/solicitations/")
     driver.implicitly_wait(5)
 
     data = None
-    # Collect network requests from Chrome DevTools logs
-    logs = driver.get_log("performance")
-    target_url = None
-    target_request = None
-    for entry in logs:
-        log = json.loads(entry["message"])["message"]
-        if (
-            log.get("method") == "Network.requestWillBeSent"
-            and "/_services/entity-grid-data.json/" in log.get("params", {}).get("request", {}).get("url", "")
-        ):
-            target_url = log["params"]["request"]["url"]
-            target_request = log["params"]["request"]
-            break
+    print("Processing requests...")
+    for request in driver.requests:
+        if not request.response:
+            print("Invalid response")
+            continue
+        if request.response.status_code != 200:
+            print("Bad status code")
+            continue
+        if "/_services/entity-grid-data.json/" not in request.url:
+            print("Skipping request:", request.url)
+            continue
 
-    if target_url and target_request:
-        # There may be no body in GET requests, so adapt as needed
-        body = target_request.get("postData")
-        if body:
-            updated_payload = json.loads(body)
-            updated_payload['pageSize'] = 1000
-        else:
-            updated_payload = {"pageSize": 1000}
-        headers = target_request.get("headers", {})
+        print("Processing request:", request.url)
+        updated_payload = json.loads(request.body.decode('utf-8'))
+        updated_payload['pageSize'] = 1000
+
+        headers = dict(request.headers)
         headers.pop('Content-Length', None)
         headers['Referer'] = "https://evp.nc.gov/solicitations/"
         headers['Origin'] = "https://evp.nc.gov"
@@ -67,7 +63,7 @@ def fetch_solicitation_data() -> str:
             session.cookies.set(cookie['name'], cookie['value'])
 
         resp = session.post(
-            target_url,
+            request.url,
             headers=headers,
             json=updated_payload,
             verify=False
@@ -86,6 +82,8 @@ def fetch_solicitation_data() -> str:
         # Cache to disk
         with open("solicitations_cache.json", "w") as f:
             json.dump(data, f, indent=2)
+
+        break
 
     driver.quit()
 
