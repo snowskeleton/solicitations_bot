@@ -45,6 +45,7 @@ class Filter:
     name: str
     criteria: str
 
+
 # Persistent storage using SQLite
 def setup_db():
     with sqlite3.connect(DB_PATH) as conn:

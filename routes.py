@@ -8,8 +8,6 @@ from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
 from Solicitation import Solicitation
 from evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
-from schedule import restart_scheduler
-# from evp_nc_gov import download_cached_records, filter_solicitations
 
 
 app = Flask(__name__)
@@ -162,7 +160,6 @@ def schedule_create():
     }
 
     storage.add_schedule(user.id, schedule_data)
-    restart_scheduler()
     return redirect("/schedules")
 
 
@@ -191,7 +188,6 @@ def schedule_save(schedule_id: int):
     }
 
     storage.update_schedule(schedule_id, updated_data)
-    restart_scheduler()
     return redirect("/schedules")
 
 

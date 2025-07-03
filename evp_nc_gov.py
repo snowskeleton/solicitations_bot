@@ -33,7 +33,7 @@ def fetch_solicitation_data() -> str:
 
     print("Navigating to the solicitations page...")
     driver.get("https://evp.nc.gov/solicitations/")
-    driver.implicitly_wait(5)
+    driver.implicitly_wait(10)
 
     data = None
     print("Processing requests...")
