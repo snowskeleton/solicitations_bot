@@ -194,10 +194,35 @@
                 value.oninput = () => { cond.value = value.value; updateTextarea(); };
                 value.style.marginRight = "4px";
 
-                condDiv.appendChild(fieldSelect);
-                condDiv.appendChild(polarity);
-                condDiv.appendChild(baseOp);
-                condDiv.appendChild(value);
+                // Special handling for Open Date (evp_opendate)
+                if (cond.field === "evp_opendate") {
+                    // Hide the normal value input
+                    value.style.display = "none";
+                    // Create a dropdown for date ranges
+                    const dateRange = document.createElement('select');
+                    [
+                        {label: "Last day", value: "last_1_day"},
+                        {label: "Last 3 days", value: "last_3_days"},
+                        {label: "Last 7 days", value: "last_7_days"}
+                    ].forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.label;
+                        if (cond.value === opt.value) option.selected = true;
+                        dateRange.appendChild(option);
+                    });
+                    dateRange.onchange = () => { cond.value = dateRange.value; updateTextarea(); };
+                    dateRange.style.marginRight = "4px";
+                    condDiv.appendChild(fieldSelect);
+                    condDiv.appendChild(polarity);
+                    condDiv.appendChild(baseOp);
+                    condDiv.appendChild(dateRange);
+                } else {
+                    condDiv.appendChild(fieldSelect);
+                    condDiv.appendChild(polarity);
+                    condDiv.appendChild(baseOp);
+                    condDiv.appendChild(value);
+                }
             }
             groupDiv.appendChild(condDiv);
         });
