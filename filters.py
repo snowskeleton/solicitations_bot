@@ -17,8 +17,30 @@ def evaluate_filter(criteria: Dict[str, Any], solicitation: 'Solicitation') -> b
             value = node.get("value", "").lower()
             invert = node.get("invert", False)
 
-            field_value = str(getattr(solicitation, field, "")).lower()
+            # Default string logic
+            if isinstance(field, str):
+                field_value = str(getattr(solicitation, field, "")).lower()
+            else:
+                field_value = ""
 
+            # Special handling for Open Date dynamic ranges
+            if field == "evp_opendate" and op == "equals" and value in ["last_1_day", "last_3_days", "last_7_days"]:
+                from datetime import datetime
+                try:
+                    open_date_str = solicitation.evp_opendate or ""
+                    if not open_date_str:
+                        return False
+                    open_date = datetime.strptime(open_date_str, "%Y-%m-%d")
+                except Exception:
+                    return False
+                today = datetime.today()
+                if value == "last_1_day":
+                    return (today - open_date).days < 1
+                elif value == "last_3_days":
+                    return (today - open_date).days < 3
+                elif value == "last_7_days":
+                    return (today - open_date).days < 7
+            # Default string logic
             result = False
             if op == "contains":
                 result = value in field_value
@@ -35,7 +57,7 @@ def evaluate_filter(criteria: Dict[str, Any], solicitation: 'Solicitation') -> b
 
 
 def filter_solicitations(solicitations: Solicitations, filters: List[Dict[str, Any]]) -> Solicitations:
-    return [
+    return Solicitations([
         s for s in solicitations
         if any(evaluate_filter(f["criteria"], s) for f in filters)
-    ]
+    ])
