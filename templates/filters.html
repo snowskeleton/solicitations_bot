@@ -153,7 +153,7 @@
 {% endfor %}
                 fieldSelect.onchange = () => {
                     cond.field = fieldSelect.value;
-                    updateTextarea();
+                    renderCriteria(); // Re-render to show special UI for Open Date
                 };
                 fieldSelect.style.marginRight = "4px";
 
@@ -194,8 +194,9 @@
                 value.oninput = () => { cond.value = value.value; updateTextarea(); };
                 value.style.marginRight = "4px";
 
-                // Special handling for Open Date (evp_opendate)
-                if (cond.field === "evp_opendate") {
+                // Special handling for date fields
+                const dateFields = ["evp_opendate", "evp_closedate", "evp_posteddate"];
+                if (dateFields.includes(cond.field)) {
                     // Hide the normal value input
                     value.style.display = "none";
                     // Create a dropdown for date ranges

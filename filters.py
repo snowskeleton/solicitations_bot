@@ -1,6 +1,8 @@
 import json
-from typing import Dict, Any
-from Solicitation import Solicitation
+from datetime import datetime
+from typing import Dict, Any, List
+
+from Solicitation import Solicitation, Solicitations
 
 
 # def evaluate_filter(criteria: Dict[str, Any], solicitation) -> bool:
@@ -23,23 +25,29 @@ def evaluate_filter(criteria: Dict[str, Any] | str, solicitation: 'Solicitation'
             else:
                 field_value = ""
 
-            # Special handling for Open Date dynamic ranges
-            if field == "evp_opendate" and op == "equals" and value in ["last_1_day", "last_3_days", "last_7_days"]:
-                from datetime import datetime
-                try:
-                    open_date_str = solicitation.evp_opendate or ""
-                    if not open_date_str:
-                        return False
-                    open_date = datetime.strptime(open_date_str, "%Y-%m-%d")
-                except Exception:
+            date_fields = ["evp_opendate", "evp_closedate", "evp_posteddate"]
+            date_ranges = ["last_1_day", "last_3_days", "last_7_days"]
+            if field in date_fields and value in date_ranges:
+                date_str = getattr(solicitation, field, "") or ""
+                if not date_str:
                     return False
-                today = datetime.today()
+                try:
+                    try:
+                        date_val = datetime.strptime(
+                            date_str, "%m/%d/%Y %I:%M %p").date()
+                    except ValueError:
+                        date_val = datetime.strptime(
+                            date_str, "%m/%d/%Y").date()
+                except Exception:
+                    print(f"Error parsing {field}: {date_str}")
+                    return False
+                today = datetime.today().date()
                 if value == "last_1_day":
-                    return (today - open_date).days < 1
+                    return (today - date_val).days < 1
                 elif value == "last_3_days":
-                    return (today - open_date).days < 3
+                    return (today - date_val).days < 3
                 elif value == "last_7_days":
-                    return (today - open_date).days < 7
+                    return (today - date_val).days < 7
             # Default string logic
             result = False
             if op == "contains":
