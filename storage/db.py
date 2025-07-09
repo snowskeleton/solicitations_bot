@@ -1,49 +1,16 @@
 # Filter model
 import sqlite3
 import os
-from dataclasses import dataclass
 from typing import Dict, List, Optional
 import secrets
 import time
 
 from env import MAGIC_LINK_EXPIRY_SECONDS
 
+from .models import User, Schedule, Filter
+
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'solicitations.db')
-
-@dataclass
-class User:
-    id: int
-    email: str
-    is_admin: bool = False
-
-@dataclass
-class MagicLinkToken:
-    token: str
-    email: str
-    expires_at: float
-
-
-@dataclass
-class Schedule:
-    id: int
-    user_id: int
-    name: str
-    monday: Optional[str]
-    tuesday: Optional[str]
-    wednesday: Optional[str]
-    thursday: Optional[str]
-    friday: Optional[str]
-    saturday: Optional[str]
-    sunday: Optional[str]
-
-
-@dataclass
-class Filter:
-    id: int
-    user_id: int
-    name: str
-    criteria: str
 
 
 # Persistent storage using SQLite

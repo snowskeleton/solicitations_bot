@@ -2,7 +2,7 @@ from typing import Dict
 
 from flask import Flask, request, redirect, render_template, session
 
-import storage
+from storage import db
 
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
@@ -31,7 +31,7 @@ def admin_console():
     if not email or email != ADMIN_EMAIL:
         return redirect("/login")
 
-    return render_template("admin.html", users=storage.list_users(), email=email)
+    return render_template("admin.html", users=db.list_users(), email=email)
 
 
 @app.route("/admin/add-user", methods=["POST"])
@@ -42,7 +42,7 @@ def add_user():
 
     new_email = request.form.get("email")
     if new_email:
-        storage.add_user(new_email, is_admin=False)
+        db.add_user(new_email, is_admin=False)
     return redirect("/admin")
 
 @app.route("/admin/impersonate", methods=["POST"])
@@ -52,7 +52,7 @@ def impersonate_user():
         return "Unauthorized", 403
 
     impersonate_email = request.form.get("impersonate_email")
-    if impersonate_email and storage.get_user(impersonate_email):
+    if impersonate_email and db.get_user(impersonate_email):
         session["email"] = impersonate_email
     return redirect("/")
 
@@ -67,10 +67,10 @@ def send_magic_link():
     email = request.form.get("email")
     if not email:
         return render_template("base.html", error="Email required")
-    if not storage.get_user(email) and not email == ADMIN_EMAIL:
+    if not db.get_user(email) and not email == ADMIN_EMAIL:
         return render_template("base.html", error="User not found. Please check your spelling or contact your admin.")
 
-    token = storage.generate_magic_token(email)
+    token = db.generate_magic_token(email)
     link = f"{URI}/magic-login?token={token}"
     send_email(email, "Solicitations Login Link", f"Click here to log in: {link}")
     return render_template("base.html", error=f"Login link sent to {email}")
@@ -82,8 +82,8 @@ def magic_login():
     if not token:
         return "No token provided", 400
 
-    email = storage.get_email_for_token(token)
-    storage.invalidate_token(token)
+    email = db.get_email_for_token(token)
+    db.invalidate_token(token)
     if not email:
         return "Invalid or expired token", 400
 
@@ -96,10 +96,10 @@ def schedule():
     email = session.get("email")
     if not email:
         return redirect("/login")
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
-    schedules = storage.get_schedules_for_user(user.id)
+    schedules = db.get_schedules_for_user(user.id)
     return render_template("schedules.html", schedules=schedules, email=email)
 
 
@@ -108,7 +108,7 @@ def schedule_edit(schedule_id: int):
     email = session.get("email")
     if not email:
         return redirect("/login")
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return "User not found", 404
 
@@ -116,7 +116,7 @@ def schedule_edit(schedule_id: int):
         # schedule starts index from 1, so this is safe
         schedule = None
     else:
-        schedule = storage.get_schedule_by_id(schedule_id)
+        schedule = db.get_schedule_by_id(schedule_id)
         if not schedule or schedule.user_id != user.id:
             return "Schedule not found or access denied", 404
 
@@ -144,7 +144,7 @@ def schedule_create():
     email = session.get("email")
     if not email:
         return redirect("/login")
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return "User not found", 404
 
@@ -159,7 +159,7 @@ def schedule_create():
         "Sunday": request.form.get("time_Sunday", "") or None,
     }
 
-    storage.add_schedule(user.id, schedule_data)
+    db.add_schedule(user.id, schedule_data)
     return redirect("/schedules")
 
 
@@ -168,11 +168,11 @@ def schedule_save(schedule_id: int):
     email = session.get("email")
     if not email:
         return redirect("/login")
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return "User not found", 404
 
-    schedule = storage.get_schedule_by_id(schedule_id)
+    schedule = db.get_schedule_by_id(schedule_id)
     if not schedule or schedule.user_id != user.id:
         return "Schedule not found or access denied", 404
 
@@ -187,7 +187,7 @@ def schedule_save(schedule_id: int):
         "Sunday": request.form.get("time_Sunday", "") or None,
     }
 
-    storage.update_schedule(schedule_id, updated_data)
+    db.update_schedule(schedule_id, updated_data)
     return redirect("/schedules")
 
 
@@ -198,7 +198,7 @@ def run_scraper():
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
@@ -216,11 +216,11 @@ def filters():
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
-    user_filters = storage.get_filters_for_user(user.id)
+    user_filters = db.get_filters_for_user(user.id)
     return render_template("filters.html", filters=user_filters, email=email, fields=Solicitation.get_filterable_fields())
 
 
@@ -230,7 +230,7 @@ def create_filter():
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
@@ -242,9 +242,9 @@ def create_filter():
         return "Missing name or criteria", 400
 
     if filter_id:
-        storage.update_filter(int(filter_id), name, criteria)
+        db.update_filter(int(filter_id), name, criteria)
     else:
-        storage.add_filter(user.id, name, criteria)
+        db.add_filter(user.id, name, criteria)
     return redirect("/filters")
 
 
@@ -254,15 +254,15 @@ def delete_filter(filter_id: int):
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
-    filter = storage.get_filter_by_id(filter_id)
+    filter = db.get_filter_by_id(filter_id)
     if not filter or filter.user_id != user.id:
         return "Filter not found or access denied", 404
 
-    storage.delete_filter(filter_id)
+    db.delete_filter(filter_id)
     return redirect("/filters")
 
 
@@ -272,7 +272,7 @@ def fetch_data_for_filters():
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
@@ -286,15 +286,11 @@ def test_filters():
     if not email:
         return redirect("/login")
 
-    user = storage.get_user(email)
+    user = db.get_user(email)
     if not user:
         return redirect("/login")
 
-    filters = storage.get_filters_for_user(user.id)
+    filters = db.get_filters_for_user(user.id)
     # records = download_cached_records()
     matched = filter_cached_solicitations(user)
-    # matched = [
-    #     record for record in records
-    #     if any(filter_solicitations([record], user, [f])[0] for f in filters)
-    # ]
     return render_template("filters.html", filters=filters, email=email, fields=Solicitation.get_filterable_fields(), matches=matched)

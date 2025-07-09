@@ -1,6 +1,6 @@
 from env import ADMIN_EMAIL
 from routes import app
-from storage.storage import setup_db, add_user
+from storage.db import setup_db, add_user
 from schedule import start_scheduler
 
 
