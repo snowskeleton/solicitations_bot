@@ -8,7 +8,7 @@ import os
 
 from seleniumbase import Driver
 
-from Solicitation import Solicitation, Solicitations
+from data_sources.Solicitation import Solicitation, Solicitations
 # from filters import evaluate_filter
 from storage.db import User, get_filters_for_user
 from emailer import send_summary_email

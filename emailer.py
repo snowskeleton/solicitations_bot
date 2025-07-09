@@ -3,7 +3,7 @@ import smtplib
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from Solicitation import Solicitations
+from data_sources.Solicitation import Solicitations
 
 from env import SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, FROM_ADDRESS
 from exceptions import MailError

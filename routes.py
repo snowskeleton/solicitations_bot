@@ -6,7 +6,7 @@ from storage import db
 
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
-from Solicitation import Solicitation
+from data_sources.Solicitation import Solicitation
 from data_sources.evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
 
 

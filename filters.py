@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, List
 
-from Solicitation import Solicitation, Solicitations
+from data_sources.Solicitation import Solicitation, Solicitations
 
 
 # def evaluate_filter(criteria: Dict[str, Any], solicitation) -> bool:
