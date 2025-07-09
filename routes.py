@@ -3,6 +3,7 @@ from typing import Dict
 from flask import Flask, request, redirect, render_template, session
 
 from storage import db
+from storage.db import get_all_solicitations
 
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
@@ -212,9 +213,6 @@ def run_scraper():
     print("Fetching Texas SmartBuy solicitations...")
     save_txsmartbuy_solicitations_to_db()
 
-    # Get filtered solicitations for the user
-    from storage.db import get_all_solicitations
-
     all_solicitations = get_all_solicitations()
     print(f"Total solicitations in database: {len(all_solicitations)}")
 
@@ -329,9 +327,6 @@ def test_filters():
 
     filters = db.get_filters_for_user(user.id)
     print(f"User {user.email} has {len(filters)} filters")
-
-    # Get all solicitations from database and filter them
-    from storage.db import get_all_solicitations
 
     all_solicitations = get_all_solicitations()
     print(
