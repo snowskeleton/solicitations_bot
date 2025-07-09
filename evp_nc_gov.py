@@ -97,7 +97,7 @@ def load_cached_solicitations() -> Solicitations:
     with open("solicitations_cache.json", "r") as f:
         data = json.load(f)
 
-    return Solicitations(Solicitation.from_dict(record) for record in data.get("Records", []))
+    return Solicitations(Solicitation.evp_from_dict(record) for record in data.get("Records", []))
 
 
 def filter_cached_solicitations(user: User) -> Solicitations:

@@ -7,14 +7,14 @@ from storage import Filter
 
 
 FIELD_LABELS = {
-    "evp_name": "Project Title",
-    "evp_description": "Description",
-    # "evp_solicitationnbr": "Solicitation Number",
-    "evp_posteddate": "Posted Date",
-    "evp_opendate": "Open Date",
-    "owningbusinessunit": "Department",
-    "statuscode": "Status",
-    "statecode": "State",
+    "title": "Project Title",
+    "description": "Description",
+    # "solicitation_number": "Solicitation Number",
+    "posted_date": "Posted Date",
+    "open_date": "Open Date",
+    "department": "Department",
+    "status": "Status",
+    # "state": "State",
     # ... add more as needed
 }
 
@@ -22,38 +22,71 @@ FIELD_LABELS = {
 class Solicitation:
     Id: str
     EntityName: str
-    statecode: Optional[str] = None
-    evp_opendate: Optional[str] = None
-    owningbusinessunit: Optional[str] = None
-    evp_posteddate: Optional[str] = None
-    evp_solicitationid: Optional[str] = None
-    evp_name: Optional[str] = None
-    statuscode: Optional[str] = None
-    evp_solicitationnbr: Optional[str] = None
-    evp_description: Optional[str] = None
+    state: Optional[str] = None
+    open_date: Optional[str] = None
+    department: Optional[str] = None
+    posted_date: Optional[str] = None
+    solicitation_id: Optional[str] = None
+    title: Optional[str] = None
+    status: Optional[str] = None
+    solicitation_number: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
 
     @classmethod
-    def from_dict(cls, record: Dict[str, Any]) -> 'Solicitation':
+    def evp_from_dict(cls, record: Dict[str, Any]) -> 'Solicitation':
         attributes: List[Any] = record.get("Attributes", [])
         if not attributes:
             raise ValueError("No attributes found in the record")
 
-        attribute_map = {}
+        attribute_map: Dict[str, Any] = {}
         for raw_attr in attributes:
             if isinstance(raw_attr, dict):
                 attr = cast(Dict[str, Any], raw_attr)
-                attribute_map[attr.get("Name")] = attr.get("DisplayValue")
+                name = attr.get("Name")
+                if name is not None:
+                    attribute_map[str(name)] = attr.get("DisplayValue")
 
+        # Map EVP keys to generic names
+        mapping: Dict[str, str] = {
+            "statecode": "state",
+            "evp_opendate": "open_date",
+            "owningbusinessunit": "department",
+            "evp_posteddate": "posted_date",
+            "evp_solicitationid": "solicitation_id",
+            "evp_name": "title",
+            "statuscode": "status",
+            "evp_solicitationnbr": "solicitation_number",
+            "evp_description": "description",
+        }
+        generic_kwargs: Dict[str, Any] = {
+            mapping[k]: v for k, v in attribute_map.items() if k in mapping
+        }
         return cls(
             Id=record.get("Id", ""),
             EntityName=record.get("EntityName", ""),
-            **{ # type: ignore[call-arg]
-                k: v
-                for k, v in attribute_map.items() # type: ignore[dict-item]
-                if k in inspect.signature(cls).parameters and k not in ('Id', 'EntityName')
-            }
+            **generic_kwargs
         )
-    
+
+    @classmethod
+    def esbd_from_dict(cls, record: Dict[str, Any]) -> 'Solicitation':
+        """
+        Create a Solicitation from a Texas SmartBuy ESBD record.
+        """
+        return cls(
+            Id=str(record.get("internalid", "")),
+            EntityName="TXSMARTBUY_ESBD",
+            solicitation_id=str(record.get("internalid", "")),
+            solicitation_number=record.get("solicitationId", ""),
+            title=record.get("title", ""),
+            description="",  # Not present in ESBD sample
+            department=record.get("agencyName", ""),
+            status=record.get("statusName", ""),
+            open_date=record.get("postingDate", ""),
+            posted_date=record.get("postingDate", ""),
+            url=f"https://www.txsmartbuy.gov/esbd/{record.get('solicitationId', '')}"
+        )
+
     @classmethod
     def get_filterable_fields(cls) -> List[Dict[str, str]]:
         return sorted(
@@ -67,18 +100,18 @@ class Solicitation:
 
     def __str__(self):
         return f"Solicitation(Id={self.Id}, EntityName={self.EntityName}, " \
-               f"statecode={self.statecode}, evp_opendate={self.evp_opendate}, " \
-               f"owningbusinessunit={self.owningbusinessunit}, evp_posteddate={self.evp_posteddate}, " \
-               f"evp_solicitationid={self.evp_solicitationid}, evp_name={self.evp_name}, " \
-               f"statuscode={self.statuscode}, evp_solicitationnbr={self.evp_solicitationnbr}, " \
-               f"evp_description={self.evp_description})"
+            f"state={self.state}, open_date={self.open_date}, " \
+            f"department={self.department}, posted_date={self.posted_date}, " \
+            f"solicitation_id={self.solicitation_id}, title={self.title}, " \
+            f"status={self.status}, solicitation_number={self.solicitation_number}, " \
+            f"description={self.description})"
 
     def format_html(self) -> str:
         job_link = f"https://evp.nc.gov/solicitations/details/?id={self.Id}"
         lines = [
-            f'<li><strong>{FIELD_LABELS.get("evp_name", "Name")}:</strong> <a href="{job_link}">{self.evp_name}</a><br>']
+            f'<li><strong>{FIELD_LABELS.get("title", "Name")}:</strong> <a href="{job_link}">{self.title}</a><br>']
         for field, label in FIELD_LABELS.items():
-            if field == "evp_name":
+            if field == "title":
                 continue
             value = getattr(self, field, "")
             if value:

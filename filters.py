@@ -25,7 +25,7 @@ def evaluate_filter(criteria: Dict[str, Any] | str, solicitation: 'Solicitation'
             else:
                 field_value = ""
 
-            date_fields = ["evp_opendate", "evp_closedate", "evp_posteddate"]
+            date_fields = ["open_date", "close_date", "posted_date"]
             date_ranges = ["last_1_day", "last_3_days", "last_7_days"]
             if field in date_fields and value in date_ranges:
                 date_str = getattr(solicitation, field, "") or ""

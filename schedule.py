@@ -17,7 +17,7 @@ def should_run(schedule_time_str: str) -> bool:
         return False
 
 def scheduler_loop():
-    print("Scheduler loop started")
+    # print("Scheduler loop started")
     weekday_fields = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
     while True:
@@ -30,17 +30,17 @@ def scheduler_loop():
         for schedule in schedules:
             schedule_time = getattr(schedule, today_field)
             if not schedule_time:
-                print(f"Didn't match {schedule_time} for {today_field} in schedule {schedule}")
+                # print(f"Didn't match {schedule_time} for {today_field} in schedule {schedule}")
                 continue
             if has_run_today(schedule.id, date_str):
-                print(f"Already run today for schedule {schedule.id} on {today_field}")
+                # print(f"Already run today for schedule {schedule.id} on {today_field}")
                 continue
             if should_run(schedule_time):
                 user = get_user_by_id(schedule.user_id)
                 if user is None:
-                    print(f"User with ID {schedule.user_id} not found for schedule {schedule.id}")
+                    # print(f"User with ID {schedule.user_id} not found for schedule {schedule.id}")
                     continue
-                print(f"Running scraper for user {user.email} on {today_field} at {schedule_time}")
+                # print(f"Running scraper for user {user.email} on {today_field} at {schedule_time}")
                 # run_scraper_job(user)
                 mark_as_run(schedule.id, date_str)
             else:
