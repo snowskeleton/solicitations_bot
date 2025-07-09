@@ -1,24 +1,78 @@
 import gzip
 import requests
-
 from io import BytesIO
-
 import json
-import os
-
 from seleniumbase import Driver
+# from selenium.webdriver.chrome.options import Options
 
 from data_sources.Solicitation import Solicitation, Solicitations
-# from filters import evaluate_filter
-from storage.db import User, get_filters_for_user
-from emailer import send_summary_email
+from storage.db import save_solicitations, clear_solicitations_by_source
 
 
-def fetch_solicitation_data() -> str:
-    from selenium.webdriver.chrome.options import Options
+def evp_from_dict(record: dict) -> Solicitation:
+    """
+    Create a Solicitation from an EVP NC Gov record.
+    """
+    from typing import Dict, Any, List, cast
 
-    options = Options()
-    options.add_argument("--headless=new")
+    attributes: List[Any] = record.get("Attributes", [])
+    if not attributes:
+        raise ValueError("No attributes found in the record")
+
+    attribute_map: Dict[str, Any] = {}
+    for raw_attr in attributes:
+        if isinstance(raw_attr, dict):
+            attr = cast(Dict[str, Any], raw_attr)
+            name = attr.get("Name")
+            if name is not None:
+                attribute_map[str(name)] = attr.get("DisplayValue")
+
+    # Map EVP keys to generic names
+    mapping: Dict[str, str] = {
+        "statecode": "state",
+        "evp_opendate": "open_date",
+        "owningbusinessunit": "department",
+        "evp_posteddate": "posted_date",
+        "evp_solicitationid": "solicitation_id",
+        "evp_name": "title",
+        "statuscode": "status",
+        "evp_solicitationnbr": "solicitation_number",
+        "evp_description": "description",
+    }
+    generic_kwargs: Dict[str, Any] = {
+        mapping[k]: v for k, v in attribute_map.items() if k in mapping
+    }
+    return Solicitation(
+        Id=record.get("Id", ""),
+        EntityName=record.get("EntityName", ""),
+        **generic_kwargs
+    )
+
+
+def save_evp_solicitations_to_db() -> None:
+    """
+    Fetch EVP solicitations and save them to the database.
+    """
+    print("Fetching and saving EVP solicitations...")
+
+    # Clear old EVP solicitations
+    clear_solicitations_by_source("EVP_NC_GOV")
+
+    # Fetch new solicitations
+    solicitations = fetch_solicitation_data()
+
+    # Save to database
+    if solicitations:
+        save_solicitations(solicitations)
+        print(f"Saved {len(solicitations)} EVP solicitations to database")
+    else:
+        print("No EVP solicitations to save")
+
+
+def fetch_solicitation_data() -> Solicitations:
+    """Fetch raw solicitation data from EVP NC Gov using Selenium and return as Solicitations."""
+    # options = Options()
+    # options.add_argument("--headless=new")
 
     print("Starting Selenium driver...")
     driver = Driver(
@@ -26,7 +80,6 @@ def fetch_solicitation_data() -> str:
         agent="user",
         browser="chrome",
         use_wire=True,
-        # no_sandbox=False,
         remote_debug=True
     )
 
@@ -44,7 +97,7 @@ def fetch_solicitation_data() -> str:
             print("Bad status code")
             continue
         if "/_services/entity-grid-data.json/" not in request.url:
-            print("Skipping request:", request.url)
+            # print("Skipping request:", request.url)
             continue
 
         print("Processing request:", request.url)
@@ -78,35 +131,19 @@ def fetch_solicitation_data() -> str:
         else:
             data = resp.json()
 
-        # Cache to disk
-        with open("solicitations_cache.json", "w") as f:
-            json.dump(data, f, indent=2)
-
         break
 
     driver.quit()
 
-    return "solicitations_cache.json"
-
-
-def load_cached_solicitations() -> Solicitations:
-    if not os.path.exists("solicitations_cache.json"):
+    if not data:
+        print("No data retrieved from EVP")
         return Solicitations()
 
-    with open("solicitations_cache.json", "r") as f:
-        data = json.load(f)
+    # Convert to Solicitations
+    solicitations = Solicitations(
+        evp_from_dict(record)
+        for record in data.get("Records", [])
+    )
 
-    return Solicitations(Solicitation.evp_from_dict(record) for record in data.get("Records", []))
-
-
-def filter_cached_solicitations(user: User) -> Solicitations:
-    cached_records = load_cached_solicitations()
-    filters = get_filters_for_user(user.id)
-    filtered_records = cached_records.filter(filters)
-    return filtered_records
-
-
-def run_scraper_job(user: User):
-    fetch_solicitation_data()
-    filtered_records = filter_cached_solicitations(user)
-    send_summary_email(user.email, filtered_records)
+    print(f"Fetched {len(solicitations)} solicitations from EVP")
+    return solicitations

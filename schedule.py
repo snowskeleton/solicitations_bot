@@ -2,7 +2,7 @@ import threading
 import time
 from datetime import datetime, time as dt_time
 from storage.db import has_run_today, mark_as_run, get_all_schedules, get_user_by_id
-from data_sources.evp_nc_gov import run_scraper_job
+# from data_sources.evp_nc_gov import run_scraper_job
 
 
 def should_run(schedule_time_str: str) -> bool:

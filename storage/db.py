@@ -9,6 +9,8 @@ from env import MAGIC_LINK_EXPIRY_SECONDS
 
 from .models import User, Schedule, Filter
 
+from data_sources.Solicitation import Solicitations
+
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'solicitations.db')
 
@@ -166,7 +168,10 @@ def add_filter(user_id: int, name: str, criteria: str) -> int:
         cursor.execute(
             'INSERT INTO filters (user_id, name, criteria) VALUES (?, ?, ?)', (user_id, name, criteria))
         conn.commit()
-        return cursor.lastrowid
+        result = cursor.lastrowid
+        if result is None:
+            raise RuntimeError("Failed to insert filter")
+        return result
 
 
 def update_filter(filter_id: int, name: str, criteria: str) -> None:
@@ -228,7 +233,10 @@ def add_schedule(user_id: int, schedule: Dict[str, str]) -> int:
             schedule.get("Sunday")
         ))
         conn.commit()
-        return cursor.lastrowid
+        result = cursor.lastrowid
+        if result is None:
+            raise RuntimeError("Failed to insert schedule")
+        return result
 
 
 def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
@@ -236,12 +244,12 @@ def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
         return
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        fields = []
-        values = []
+        fields: List[str] = []
+        values: List[str] = []
         for key, value in updates.items():
             fields.append(f"{key.lower()} = ?")
             values.append(value)
-        values.append(schedule_id)
+        values.append(str(schedule_id))
         cursor.execute(f'''
             UPDATE schedules
             SET {", ".join(fields)}
@@ -278,3 +286,141 @@ def get_all_schedule_user_ids() -> List[int]:
         cursor = conn.cursor()
         cursor.execute('SELECT DISTINCT user_id FROM schedules')
         return [row[0] for row in cursor.fetchall()]
+
+
+# Solicitations
+def setup_solicitations_table():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS solicitations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                solicitation_id TEXT UNIQUE,
+                entity_name TEXT,
+                state TEXT,
+                open_date TEXT,
+                department TEXT,
+                posted_date TEXT,
+                title TEXT,
+                status TEXT,
+                solicitation_number TEXT,
+                description TEXT,
+                url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
+
+
+def save_solicitations(solicitations: Solicitations) -> None:
+    """Save a list of solicitations to the database."""
+    setup_solicitations_table()
+    print(f"Saving {len(solicitations)} solicitations to database...")
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        for solicitation in solicitations:
+            cursor.execute('''
+                INSERT OR REPLACE INTO solicitations (
+                    solicitation_id, entity_name, state, open_date, department,
+                    posted_date, title, status, solicitation_number, description, url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                solicitation.solicitation_id or solicitation.Id,
+                solicitation.EntityName,
+                solicitation.state,
+                solicitation.open_date,
+                solicitation.department,
+                solicitation.posted_date,
+                solicitation.title,
+                solicitation.status,
+                solicitation.solicitation_number,
+                solicitation.description,
+                solicitation.url
+            ))
+        conn.commit()
+    print(f"Successfully saved {len(solicitations)} solicitations to database")
+
+
+def get_all_solicitations() -> Solicitations:
+    """Get all solicitations from the database."""
+    setup_solicitations_table()
+    from data_sources.Solicitation import Solicitation
+    solicitations = Solicitations()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT solicitation_id, entity_name, state, open_date, department,
+                   posted_date, title, status, solicitation_number, description, url
+            FROM solicitations
+            ORDER BY created_at DESC
+        ''')
+        rows = cursor.fetchall()
+        print(f"Retrieved {len(rows)} solicitations from database")
+        for row in rows:
+            solicitations.append(Solicitation(
+                Id=row[0] or "",
+                EntityName=row[1] or "",
+                state=row[2],
+                open_date=row[3],
+                department=row[4],
+                posted_date=row[5],
+                title=row[6],
+                status=row[7],
+                solicitation_number=row[8],
+                description=row[9],
+                url=row[10]
+            ))
+    return solicitations
+
+
+def get_solicitations_by_source(entity_name: str) -> Solicitations:
+    """Get solicitations from a specific source."""
+    setup_solicitations_table()
+    from data_sources.Solicitation import Solicitation
+    solicitations = Solicitations()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT solicitation_id, entity_name, state, open_date, department,
+                   posted_date, title, status, solicitation_number, description, url
+            FROM solicitations
+            WHERE entity_name = ?
+            ORDER BY created_at DESC
+        ''', (entity_name,))
+        rows = cursor.fetchall()
+        print(
+            f"Retrieved {len(rows)} solicitations from database for source: {entity_name}")
+        for row in rows:
+            solicitations.append(Solicitation(
+                Id=row[0] or "",
+                EntityName=row[1] or "",
+                state=row[2],
+                open_date=row[3],
+                department=row[4],
+                posted_date=row[5],
+                title=row[6],
+                status=row[7],
+                solicitation_number=row[8],
+                description=row[9],
+                url=row[10]
+            ))
+    return solicitations
+
+
+def clear_solicitations_by_source(entity_name: str) -> None:
+    """Clear all solicitations from a specific source."""
+    setup_solicitations_table()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM solicitations WHERE entity_name = ?', (entity_name,))
+        conn.commit()
+
+
+def clear_all_solicitations() -> None:
+    """Clear all solicitations from the database."""
+    setup_solicitations_table()
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM solicitations')
+        conn.commit()

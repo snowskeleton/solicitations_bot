@@ -1,9 +1,9 @@
 import inspect
 
 from dataclasses import dataclass
-from typing import Dict, Optional, List, Any, cast
+from typing import Dict, Optional, List
 
-from storage.db import Filter
+from storage.models import Filter
 
 
 FIELD_LABELS = {
@@ -13,7 +13,7 @@ FIELD_LABELS = {
     "posted_date": "Posted Date",
     "open_date": "Open Date",
     "department": "Department",
-    "status": "Status",
+    # "status": "Status",
     # "state": "State",
     # ... add more as needed
 }
@@ -32,60 +32,6 @@ class Solicitation:
     solicitation_number: Optional[str] = None
     description: Optional[str] = None
     url: Optional[str] = None
-
-    @classmethod
-    def evp_from_dict(cls, record: Dict[str, Any]) -> 'Solicitation':
-        attributes: List[Any] = record.get("Attributes", [])
-        if not attributes:
-            raise ValueError("No attributes found in the record")
-
-        attribute_map: Dict[str, Any] = {}
-        for raw_attr in attributes:
-            if isinstance(raw_attr, dict):
-                attr = cast(Dict[str, Any], raw_attr)
-                name = attr.get("Name")
-                if name is not None:
-                    attribute_map[str(name)] = attr.get("DisplayValue")
-
-        # Map EVP keys to generic names
-        mapping: Dict[str, str] = {
-            "statecode": "state",
-            "evp_opendate": "open_date",
-            "owningbusinessunit": "department",
-            "evp_posteddate": "posted_date",
-            "evp_solicitationid": "solicitation_id",
-            "evp_name": "title",
-            "statuscode": "status",
-            "evp_solicitationnbr": "solicitation_number",
-            "evp_description": "description",
-        }
-        generic_kwargs: Dict[str, Any] = {
-            mapping[k]: v for k, v in attribute_map.items() if k in mapping
-        }
-        return cls(
-            Id=record.get("Id", ""),
-            EntityName=record.get("EntityName", ""),
-            **generic_kwargs
-        )
-
-    @classmethod
-    def esbd_from_dict(cls, record: Dict[str, Any]) -> 'Solicitation':
-        """
-        Create a Solicitation from a Texas SmartBuy ESBD record.
-        """
-        return cls(
-            Id=str(record.get("internalid", "")),
-            EntityName="TXSMARTBUY_ESBD",
-            solicitation_id=str(record.get("internalid", "")),
-            solicitation_number=record.get("solicitationId", ""),
-            title=record.get("title", ""),
-            description="",  # Not present in ESBD sample
-            department=record.get("agencyName", ""),
-            status=record.get("statusName", ""),
-            open_date=record.get("postingDate", ""),
-            posted_date=record.get("postingDate", ""),
-            url=f"https://www.txsmartbuy.gov/esbd/{record.get('solicitationId', '')}"
-        )
 
     @classmethod
     def get_filterable_fields(cls) -> List[Dict[str, str]]:
@@ -107,7 +53,12 @@ class Solicitation:
             f"description={self.description})"
 
     def format_html(self) -> str:
-        job_link = f"https://evp.nc.gov/solicitations/details/?id={self.Id}"
+        # Use the solicitation's URL if available, otherwise fall back to EVP format
+        if self.url:
+            job_link = self.url
+        else:
+            job_link = f"https://evp.nc.gov/solicitations/details/?id={self.Id}"
+
         lines = [
             f'<li><strong>{FIELD_LABELS.get("title", "Name")}:</strong> <a href="{job_link}">{self.title}</a><br>']
         for field, label in FIELD_LABELS.items():

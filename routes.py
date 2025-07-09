@@ -7,7 +7,8 @@ from storage import db
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
 from data_sources.Solicitation import Solicitation
-from data_sources.evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
+from data_sources.evp_nc_gov import save_evp_solicitations_to_db
+from data_sources.txsmartbuy_gov__esbd import save_txsmartbuy_solicitations_to_db
 
 
 app = Flask(__name__)
@@ -148,15 +149,15 @@ def schedule_create():
     if not user:
         return "User not found", 404
 
-    schedule_data: Dict[str, str | None] = {
+    schedule_data: Dict[str, str] = {
         "name": request.form.get("name", "").strip() or "Default",
-        "Monday": request.form.get("time_Monday", "") or None,
-        "Tuesday": request.form.get("time_Tuesday", "") or None,
-        "Wednesday": request.form.get("time_Wednesday", "") or None,
-        "Thursday": request.form.get("time_Thursday", "") or None,
-        "Friday": request.form.get("time_Friday", "") or None,
-        "Saturday": request.form.get("time_Saturday", "") or None,
-        "Sunday": request.form.get("time_Sunday", "") or None,
+        "Monday": request.form.get("time_Monday", "") or "",
+        "Tuesday": request.form.get("time_Tuesday", "") or "",
+        "Wednesday": request.form.get("time_Wednesday", "") or "",
+        "Thursday": request.form.get("time_Thursday", "") or "",
+        "Friday": request.form.get("time_Friday", "") or "",
+        "Saturday": request.form.get("time_Saturday", "") or "",
+        "Sunday": request.form.get("time_Sunday", "") or "",
     }
 
     db.add_schedule(user.id, schedule_data)
@@ -176,15 +177,15 @@ def schedule_save(schedule_id: int):
     if not schedule or schedule.user_id != user.id:
         return "Schedule not found or access denied", 404
 
-    updated_data: Dict[str, str | None] = {
+    updated_data: Dict[str, str] = {
         "name": request.form.get("name", "").strip() or "Default",
-        "Monday": request.form.get("time_Monday", "") or None,
-        "Tuesday": request.form.get("time_Tuesday", "") or None,
-        "Wednesday": request.form.get("time_Wednesday", "") or None,
-        "Thursday": request.form.get("time_Thursday", "") or None,
-        "Friday": request.form.get("time_Friday", "") or None,
-        "Saturday": request.form.get("time_Saturday", "") or None,
-        "Sunday": request.form.get("time_Sunday", "") or None,
+        "Monday": request.form.get("time_Monday", "") or "",
+        "Tuesday": request.form.get("time_Tuesday", "") or "",
+        "Wednesday": request.form.get("time_Wednesday", "") or "",
+        "Thursday": request.form.get("time_Thursday", "") or "",
+        "Friday": request.form.get("time_Friday", "") or "",
+        "Saturday": request.form.get("time_Saturday", "") or "",
+        "Sunday": request.form.get("time_Sunday", "") or "",
     }
 
     db.update_schedule(schedule_id, updated_data)
@@ -202,8 +203,36 @@ def run_scraper():
     if not user:
         return redirect("/login")
 
-    from data_sources.evp_nc_gov import run_scraper_job
-    run_scraper_job(user)
+    print(f"Starting scraper job for user {user.email}")
+
+    # Fetch and save solicitations from all sources
+    print("Fetching EVP solicitations...")
+    save_evp_solicitations_to_db()
+
+    print("Fetching Texas SmartBuy solicitations...")
+    save_txsmartbuy_solicitations_to_db()
+
+    # Get filtered solicitations for the user
+    from storage.db import get_all_solicitations
+
+    all_solicitations = get_all_solicitations()
+    print(f"Total solicitations in database: {len(all_solicitations)}")
+
+    user_filters = db.get_filters_for_user(user.id)
+    print(f"User has {len(user_filters)} filters")
+
+    if user_filters:
+        filtered_solicitations = all_solicitations.filter(user_filters)
+        print(
+            f"After filtering: {len(filtered_solicitations)} solicitations match")
+    else:
+        filtered_solicitations = all_solicitations
+        print(
+            f"No filters applied, sending all {len(filtered_solicitations)} solicitations")
+
+    # Send email with filtered results
+    from emailer import send_summary_email
+    send_summary_email(user.email, filtered_solicitations)
 
     return redirect("/")
 
@@ -276,7 +305,15 @@ def fetch_data_for_filters():
     if not user:
         return redirect("/login")
 
-    fetch_solicitation_data()
+    print(f"Fetching data for user {user.email}")
+
+    # Fetch and save solicitations from all sources
+    print("Fetching EVP solicitations...")
+    save_evp_solicitations_to_db()
+
+    print("Fetching Texas SmartBuy solicitations...")
+    save_txsmartbuy_solicitations_to_db()
+
     return redirect("/filters")
 
 
@@ -291,6 +328,20 @@ def test_filters():
         return redirect("/login")
 
     filters = db.get_filters_for_user(user.id)
-    # records = download_cached_records()
-    matched = filter_cached_solicitations(user)
+    print(f"User {user.email} has {len(filters)} filters")
+
+    # Get all solicitations from database and filter them
+    from storage.db import get_all_solicitations
+
+    all_solicitations = get_all_solicitations()
+    print(
+        f"Retrieved {len(all_solicitations)} total solicitations from database")
+
+    if filters:
+        matched = all_solicitations.filter(filters)
+        print(f"After filtering: {len(matched)} solicitations match")
+    else:
+        matched = all_solicitations
+        print(f"No filters applied, showing all {len(matched)} solicitations")
+
     return render_template("filters.html", filters=filters, email=email, fields=Solicitation.get_filterable_fields(), matches=matched)
