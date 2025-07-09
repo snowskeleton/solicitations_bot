@@ -3,7 +3,7 @@ import inspect
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Any, cast
 
-from storage import Filter
+from storage.storage import Filter
 
 
 FIELD_LABELS = {

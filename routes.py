@@ -7,7 +7,7 @@ import storage
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
 from Solicitation import Solicitation
-from evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
+from data_sources.evp_nc_gov import filter_cached_solicitations, fetch_solicitation_data
 
 
 app = Flask(__name__)
@@ -202,7 +202,7 @@ def run_scraper():
     if not user:
         return redirect("/login")
 
-    from evp_nc_gov import run_scraper_job
+    from data_sources.evp_nc_gov import run_scraper_job
     run_scraper_job(user)
 
     return redirect("/")

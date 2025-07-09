@@ -10,8 +10,7 @@ from seleniumbase import Driver
 
 from Solicitation import Solicitation, Solicitations
 # from filters import evaluate_filter
-from storage import User
-from storage import get_filters_for_user
+from storage.storage import User, get_filters_for_user
 from emailer import send_summary_email
 
 
