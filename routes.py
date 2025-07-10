@@ -4,6 +4,7 @@ from flask import Flask, request, redirect, render_template, session
 
 from storage import db
 from storage.db import get_all_solicitations
+from storage.db import delete_schedule
 
 from emailer import send_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
@@ -33,8 +34,8 @@ def execute_job_for_user(user_email: str, send_email_result: bool = True, use_ca
 
     if not use_cache:
         # Fetch and save solicitations from all sources
-        # print("Fetching EVP solicitations...")
-        # save_evp_solicitations_to_db()
+        print("Fetching EVP solicitations...")
+        save_evp_solicitations_to_db()
 
         print("Fetching Texas SmartBuy solicitations...")
         save_txsmartbuy_solicitations_to_db()
@@ -239,6 +240,23 @@ def schedule_save(schedule_id: int):
     }
 
     db.update_schedule(schedule_id, updated_data)
+    return redirect("/schedules")
+
+
+@app.route("/schedules/<int:schedule_id>/delete", methods=["POST"])
+def schedule_delete(schedule_id: int):
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = db.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    schedule = db.get_schedule_by_id(schedule_id)
+    if not schedule or schedule.user_id != user.id:
+        return "Schedule not found or access denied", 404
+
+    delete_schedule(schedule_id)
     return redirect("/schedules")
 
 
