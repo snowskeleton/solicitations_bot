@@ -50,6 +50,12 @@
 <script>
     let criteria = {"op": "AND", "conditions": []};
 
+    function wrapInParentGroup() {
+        criteria = { op: "AND", conditions: [criteria] };
+        renderCriteria();
+        updateTextarea();
+    }
+
     function loadExistingFilterJson(json, name, id) {
         try {
             if (typeof json === "string") {
@@ -92,6 +98,58 @@
         groupDiv.style.margin = "5px";
         groupDiv.style.padding = "5px";
 
+        // --- Group-level buttons (all on the same line) ---
+        const buttonBar = document.createElement('div');
+        buttonBar.style.marginBottom = "6px";
+        // Add Condition
+        const addConditionBtn = document.createElement('button');
+        addConditionBtn.type = "button";
+        addConditionBtn.textContent = "Add Condition";
+        addConditionBtn.onclick = () => {
+            group.conditions.push({field: "", operator: "contains", invert: false, value: ""});
+            renderCriteria();
+        };
+        buttonBar.appendChild(addConditionBtn);
+        // Add Group
+        const addGroupBtn = document.createElement('button');
+        addGroupBtn.type = "button";
+        addGroupBtn.textContent = "Add Group";
+        addGroupBtn.onclick = () => {
+            group.conditions.push({op: "AND", conditions: []});
+            renderCriteria();
+        };
+        buttonBar.appendChild(addGroupBtn);
+        // Nest Group
+        const nestBtn = document.createElement('button');
+        nestBtn.type = "button";
+        nestBtn.textContent = "Nest Group";
+        nestBtn.onclick = () => {
+            nestCurrentGroup(criteria, group);
+        };
+        buttonBar.appendChild(nestBtn);
+        // Unnest Group
+        if (group !== criteria) {
+            const unnestBtn = document.createElement('button');
+            unnestBtn.type = "button";
+            unnestBtn.textContent = "Unnest Group";
+            unnestBtn.onclick = () => {
+                moveGroupToParent(criteria, null, group, null);
+            };
+            buttonBar.appendChild(unnestBtn);
+        }
+        // Remove Group
+        if (group !== criteria) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = "button";
+            removeBtn.textContent = "Remove";
+            removeBtn.onclick = () => {
+                removeGroup(criteria, group);
+            };
+            buttonBar.appendChild(removeBtn);
+        }
+        groupDiv.appendChild(buttonBar);
+
+        // Operator select
         const opSelect = document.createElement('select');
         opSelect.innerHTML = `
             <option value="AND" ${group.op === 'AND' ? 'selected' : ''}>All</option>
@@ -102,38 +160,34 @@
         };
         groupDiv.appendChild(opSelect);
 
-        const addConditionBtn = document.createElement('button');
-        addConditionBtn.type = "button";
-        addConditionBtn.textContent = "+ Single Condition";
-        addConditionBtn.onclick = () => {
-            group.conditions.push({field: "", operator: "contains", invert: false, value: ""});
-            renderCriteria();
-        };
-        groupDiv.appendChild(addConditionBtn);
-
-        const addGroupBtn = document.createElement('button');
-        addGroupBtn.type = "button";
-        addGroupBtn.textContent = "+ Conditional Group";
-        addGroupBtn.onclick = () => {
-            group.conditions.push({op: "AND", conditions: []});
-            renderCriteria();
-        };
-        groupDiv.appendChild(addGroupBtn);
-
+        // Render conditions
         group.conditions.forEach((cond, index) => {
             const condDiv = document.createElement('div');
             condDiv.style.marginLeft = "10px";
             condDiv.style.marginTop = "4px";
-            // Remove button
-            const removeBtn = document.createElement('button');
-            removeBtn.type = "button";
-            removeBtn.textContent = "Remove";
-            removeBtn.style.marginRight = "6px";
-            removeBtn.onclick = () => {
-                group.conditions.splice(index, 1);
-                renderCriteria();
-            };
-            condDiv.appendChild(removeBtn);
+            // Remove button for single conditions
+            if (!(cond.op && Array.isArray(cond.conditions))) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = "button";
+                removeBtn.textContent = "Remove";
+                removeBtn.style.marginRight = "6px";
+                removeBtn.onclick = () => {
+                    group.conditions.splice(index, 1);
+                    renderCriteria();
+                };
+                condDiv.appendChild(removeBtn);
+
+                // Unnest for single conditions
+                const moveToParentBtn = document.createElement('button');
+                moveToParentBtn.type = "button";
+                moveToParentBtn.textContent = "Unnest";
+                moveToParentBtn.style.marginRight = "6px";
+                moveToParentBtn.onclick = () => {
+                    moveConditionToParent(criteria, group, cond, index);
+                };
+                condDiv.appendChild(moveToParentBtn);
+            }
+            // Nested group
             if (cond.op && Array.isArray(cond.conditions)) {
                 const nestedGroup = renderGroup(cond);
                 nestedGroup.style.marginLeft = "20px";
@@ -283,5 +337,117 @@ function discardChanges() {
         renderCriteria();
     }
 }
+
+    // Move a condition up one level in the criteria tree
+    function moveConditionToParent(root, parentGroup, cond, index) {
+        // Find the parent of parentGroup and its index in the parent's conditions
+        function findParentAndIndex(node, target) {
+            if (!node.conditions) return null;
+            for (let i = 0; i < node.conditions.length; i++) {
+                if (node.conditions[i] === target) {
+                    return { parent: node, idx: i };
+                }
+                if (node.conditions[i].op && Array.isArray(node.conditions[i].conditions)) {
+                    const res = findParentAndIndex(node.conditions[i], target);
+                    if (res) return res;
+                }
+            }
+            return null;
+        }
+        const res = findParentAndIndex(root, parentGroup);
+        if (res) {
+            // Remove from current group
+            parentGroup.conditions.splice(index, 1);
+            // Insert into parent after the group
+            res.parent.conditions.splice(res.idx + 1, 0, cond);
+            renderCriteria();
+            updateTextarea();
+        } else {
+            alert("Cannot move to parent (already at top level)");
+        }
+    }
+
+    // Move a group up one level in the criteria tree
+    function moveGroupToParent(root, parentGroup, groupToMove, index) {
+        // Find the parent of parentGroup and its index in the parent's conditions
+        function findParentAndIndex(node, target) {
+            if (!node.conditions) return null;
+            for (let i = 0; i < node.conditions.length; i++) {
+                if (node.conditions[i] === target) {
+                    return { parent: node, idx: i };
+                }
+                if (node.conditions[i].op && Array.isArray(node.conditions[i].conditions)) {
+                    const res = findParentAndIndex(node.conditions[i], target);
+                    if (res) return res;
+                }
+            }
+            return null;
+        }
+        // Find the parent of the group to move
+        const res = findParentAndIndex(root, groupToMove);
+        if (res) {
+            // Remove the group from its parent
+            res.parent.conditions.splice(res.idx, 1);
+            // Insert all child conditions into the parent at the same position
+            res.parent.conditions.splice(res.idx, 0, ...groupToMove.conditions);
+            renderCriteria();
+            updateTextarea();
+        } else {
+            alert("Cannot move group to parent (already at top level)");
+        }
+    }
+
+    // Nest the given group in a new parent group (op: 'AND')
+    function nestCurrentGroup(root, groupToNest) {
+        // Find the parent of groupToNest and its index
+        function findParentAndIndex(node, target) {
+            if (!node.conditions) return null;
+            for (let i = 0; i < node.conditions.length; i++) {
+                if (node.conditions[i] === target) {
+                    return { parent: node, idx: i };
+                }
+                if (node.conditions[i].op && Array.isArray(node.conditions[i].conditions)) {
+                    const res = findParentAndIndex(node.conditions[i], target);
+                    if (res) return res;
+                }
+            }
+            return null;
+        }
+        // If this is the root, just wrap criteria
+        if (groupToNest === root) {
+            criteria = { op: "AND", conditions: [criteria] };
+        } else {
+            const res = findParentAndIndex(root, groupToNest);
+            if (res) {
+                // Replace the group with a new parent group wrapping it
+                res.parent.conditions.splice(res.idx, 1, { op: "AND", conditions: [groupToNest] });
+            }
+        }
+        renderCriteria();
+        updateTextarea();
+    }
+
+    // Remove a group from the tree
+    function removeGroup(root, groupToRemove) {
+        function findParentAndIndex(node, target) {
+            if (!node.conditions) return null;
+            for (let i = 0; i < node.conditions.length; i++) {
+                if (node.conditions[i] === target) {
+                    return { parent: node, idx: i };
+                }
+                if (node.conditions[i].op && Array.isArray(node.conditions[i].conditions)) {
+                    const res = findParentAndIndex(node.conditions[i], target);
+                    if (res) return res;
+                }
+            }
+            return null;
+        }
+        const res = findParentAndIndex(root, groupToRemove);
+        if (res) {
+            res.parent.conditions.splice(res.idx, 1);
+            renderCriteria();
+            updateTextarea();
+        }
+    }
 </script>
 {% endblock %}

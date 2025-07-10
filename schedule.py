@@ -2,7 +2,8 @@ import threading
 import time
 from datetime import datetime, time as dt_time
 from storage.db import has_run_today, mark_as_run, get_all_schedules, get_user_by_id
-# from data_sources.evp_nc_gov import run_scraper_job
+# Import the centralized job function
+from routes import execute_job_for_user
 
 
 def should_run(schedule_time_str: str) -> bool:
@@ -40,9 +41,16 @@ def scheduler_loop():
                 if user is None:
                     # print(f"User with ID {schedule.user_id} not found for schedule {schedule.id}")
                     continue
-                # print(f"Running scraper for user {user.email} on {today_field} at {schedule_time}")
-                # run_scraper_job(user)
-                mark_as_run(schedule.id, date_str)
+                print(
+                    f"Running scheduled job for user {user.email} on {today_field} at {schedule_time}")
+                try:
+                    # Execute job with email sending enabled for scheduled runs
+                    execute_job_for_user(user.email, send_email_result=True)
+                    mark_as_run(schedule.id, date_str)
+                except Exception as e:
+                    print(
+                        f"Error running scheduled job for user {user.email}: {e}")
+                    # Don't mark as run if there was an error
             else:
                 print(f"Skipping schedule {schedule.id} on {today_field} at {schedule_time}")    
 

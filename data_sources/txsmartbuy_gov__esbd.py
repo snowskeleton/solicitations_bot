@@ -6,24 +6,71 @@ from data_sources.Solicitation import Solicitation, Solicitations
 from storage.db import save_solicitations, clear_solicitations_by_source
 
 ESBD_URL = "https://www.txsmartbuy.gov/app/extensions/CPA/CPAMain/1.0.0/services/ESBD.Service.ss"
+DETAILS_API_URL = "https://www.txsmartbuy.gov/app/extensions/CPA/CPAMain/1.0.0/services/ESBD.Details.Service.ss"
+
+
+def fetch_solicitation_details(solicitation_id: str) -> str:
+    """
+    Fetch detailed description for a specific solicitation using the API.
+    :param solicitation_id: The solicitation ID (e.g., "2025-003")
+    :return: Description text or empty string if not found
+    """
+    try:
+        params = {
+            "c": "852252",  # Company ID
+            "identification": solicitation_id,  # The solicitation ID
+            "n": "2",
+            "urlRoot": "esbd"
+        }
+
+        response = requests.get(DETAILS_API_URL, params=params)
+        response.raise_for_status()
+
+        data = response.json()
+
+        # Extract description from the response
+        if isinstance(data, dict):
+            description = data.get("description", "")
+
+            # Clean up HTML tags if present
+            if description and "<" in description:
+                import re
+                description = re.sub(r'<[^>]+>', '', description)
+                description = re.sub(r'\s+', ' ', description).strip()
+
+            return description
+
+        return ""
+
+    except Exception as e:
+        print(
+            f"Error fetching details for solicitation {solicitation_id}: {e}")
+        return ""
 
 
 def esbd_from_dict(record: Dict[str, Any]) -> Solicitation:
     """
     Create a Solicitation from a Texas SmartBuy ESBD record.
     """
+    solicitation_id = record.get("solicitationId", "")
+
+    # Try to fetch description if we have a solicitation ID
+    description = ""
+    if solicitation_id:
+        description = fetch_solicitation_details(solicitation_id)
+
     return Solicitation(
         Id=str(record.get("internalid", "")),
         EntityName="TXSMARTBUY_ESBD",
         solicitation_id=str(record.get("internalid", "")),
-        solicitation_number=record.get("solicitationId", ""),
+        solicitation_number=solicitation_id,
         title=record.get("title", ""),
-        description="",  # Not present in ESBD sample
+        description=description,
         department=record.get("agencyName", ""),
         status=record.get("statusName", ""),
         open_date=record.get("postingDate", ""),
         posted_date=record.get("postingDate", ""),
-        url=f"https://www.txsmartbuy.gov/esbd/{record.get('solicitationId', '')}"
+        url=f"https://www.txsmartbuy.gov/esbd/{solicitation_id}"
     )
 
 
@@ -70,7 +117,7 @@ def fetch_txsmartbuy_esbd_data(params: Dict[str, Any] = {}) -> Any:
                 return []
 
         # Use ThreadPoolExecutor to run 3 concurrent requests
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             # Submit all page requests
             future_to_page = {
                 executor.submit(fetch_page, page): page
@@ -115,9 +162,10 @@ def fetch_txsmartbuy_esbd_data(params: Dict[str, Any] = {}) -> Any:
     return response.json()
 
 
-def fetch_txsmartbuy_solicitations() -> Solicitations:
+def fetch_txsmartbuy_solicitations(fetch_descriptions: bool = True) -> Solicitations:
     """
     Fetch solicitations from Texas SmartBuy ESBD and return as Solicitations object.
+    :param fetch_descriptions: Whether to fetch detailed descriptions (slower but more complete)
     """
     print("Starting Texas SmartBuy ESBD data fetch...")
 
@@ -127,10 +175,74 @@ def fetch_txsmartbuy_solicitations() -> Solicitations:
 
         # Convert to Solicitations
         lines = data.get("lines", [])
-        solicitations = Solicitations(
-            esbd_from_dict(record)
-            for record in lines
-        )
+
+        if fetch_descriptions:
+            # Create solicitations with concurrent detail fetching
+            basic_solicitations = []
+            for record in lines:
+                solicitation_id = record.get("solicitationId", "")
+                basic_solicitations.append(Solicitation(
+                    Id=str(record.get("internalid", "")),
+                    EntityName="TXSMARTBUY_ESBD",
+                    solicitation_id=str(record.get("internalid", "")),
+                    solicitation_number=solicitation_id,
+                    title=record.get("title", ""),
+                    description="",  # Will be filled in later
+                    department=record.get("agencyName", ""),
+                    status=record.get("statusName", ""),
+                    open_date=record.get("postingDate", ""),
+                    posted_date=record.get("postingDate", ""),
+                    url=f"https://www.txsmartbuy.gov/esbd/{solicitation_id}"
+                ))
+
+            # Fetch descriptions concurrently for solicitations that have IDs
+            total_solicitations = len(basic_solicitations)
+            print(
+                f"Fetching descriptions for {total_solicitations} solicitations...")
+
+            completed_count = 0
+
+            def fetch_description_for_solicitation(solicitation: Solicitation) -> Solicitation:
+                """Helper function to fetch description for a single solicitation"""
+                nonlocal completed_count
+                if solicitation.solicitation_number:
+                    print(
+                        f"Fetching description for {solicitation.solicitation_number} ({solicitation.title[:50]}...)")
+                    description = fetch_solicitation_details(
+                        solicitation.solicitation_number)
+                    solicitation.description = description
+                    completed_count += 1
+                    remaining = total_solicitations - completed_count
+                    print(
+                        f"✓ Completed {completed_count}/{total_solicitations} ({remaining} remaining)")
+                return solicitation
+
+            # Use ThreadPoolExecutor to fetch descriptions concurrently
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                # Submit all description fetch requests
+                future_to_solicitation = {
+                    executor.submit(fetch_description_for_solicitation, solicitation): solicitation
+                    for solicitation in basic_solicitations
+                }
+
+                # Wait for all to complete
+                for future in as_completed(future_to_solicitation):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(f"Error fetching description: {e}")
+                        completed_count += 1
+                        remaining = total_solicitations - completed_count
+                        print(
+                            f"✗ Error - {completed_count}/{total_solicitations} ({remaining} remaining)")
+
+            solicitations = Solicitations(basic_solicitations)
+        else:
+            # Use the original fast method without descriptions
+            solicitations = Solicitations(
+                esbd_from_dict(record)
+                for record in lines
+            )
 
         print(
             f"Fetched {len(solicitations)} solicitations from Texas SmartBuy")

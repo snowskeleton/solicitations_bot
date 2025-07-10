@@ -15,6 +15,55 @@ from data_sources.txsmartbuy_gov__esbd import save_txsmartbuy_solicitations_to_d
 app = Flask(__name__)
 app.secret_key = COOKIE_SECRET
 
+
+def execute_job_for_user(user_email: str, send_email_result: bool = True, use_cache: bool = False):
+    """
+    Centralized function to execute a job for a user.
+    This includes fetching data, applying filters, and optionally sending email.
+    
+    :param user_email: Email of the user to run the job for
+    :param send_email_result: Whether to send email with results (default: True)
+    :return: Tuple of (filtered_solicitations, user_filters) for further processing
+    """
+    user = db.get_user(user_email)
+    if not user:
+        raise ValueError(f"User not found: {user_email}")
+
+    print(f"Starting job execution for user {user.email}")
+
+    if not use_cache:
+        # Fetch and save solicitations from all sources
+        # print("Fetching EVP solicitations...")
+        # save_evp_solicitations_to_db()
+
+        print("Fetching Texas SmartBuy solicitations...")
+        save_txsmartbuy_solicitations_to_db()
+    else:
+        print("Using cache")
+
+    all_solicitations = get_all_solicitations()
+    print(f"Total solicitations in database: {len(all_solicitations)}")
+
+    user_filters = db.get_filters_for_user(user.id)
+    print(f"User has {len(user_filters)} filters")
+
+    if user_filters:
+        filtered_solicitations = all_solicitations.filter(user_filters)
+        print(
+            f"After filtering: {len(filtered_solicitations)} solicitations match")
+    else:
+        filtered_solicitations = all_solicitations
+        print(
+            f"No filters applied, sending all {len(filtered_solicitations)} solicitations")
+
+    # Send email if requested
+    if send_email_result:
+        from emailer import send_summary_email
+        send_summary_email(user.email, filtered_solicitations)
+
+    return filtered_solicitations, user_filters
+
+
 @app.route("/", methods=["GET"])
 def default():
     email = session.get("email")
@@ -200,39 +249,13 @@ def run_scraper():
     if not email:
         return redirect("/login")
 
-    user = db.get_user(email)
-    if not user:
-        return redirect("/login")
-
-    print(f"Starting scraper job for user {user.email}")
-
-    # Fetch and save solicitations from all sources
-    print("Fetching EVP solicitations...")
-    save_evp_solicitations_to_db()
-
-    print("Fetching Texas SmartBuy solicitations...")
-    save_txsmartbuy_solicitations_to_db()
-
-    all_solicitations = get_all_solicitations()
-    print(f"Total solicitations in database: {len(all_solicitations)}")
-
-    user_filters = db.get_filters_for_user(user.id)
-    print(f"User has {len(user_filters)} filters")
-
-    if user_filters:
-        filtered_solicitations = all_solicitations.filter(user_filters)
-        print(
-            f"After filtering: {len(filtered_solicitations)} solicitations match")
-    else:
-        filtered_solicitations = all_solicitations
-        print(
-            f"No filters applied, sending all {len(filtered_solicitations)} solicitations")
-
-    # Send email with filtered results
-    from emailer import send_summary_email
-    send_summary_email(user.email, filtered_solicitations)
-
-    return redirect("/")
+    try:
+        # Execute job with email sending enabled
+        execute_job_for_user(email, send_email_result=True)
+        return redirect("/")
+    except Exception as e:
+        print(f"Error running scraper for {email}: {e}")
+        return "Error running scraper", 500
 
 # Filter management routes
 
@@ -299,20 +322,13 @@ def fetch_data_for_filters():
     if not email:
         return redirect("/login")
 
-    user = db.get_user(email)
-    if not user:
-        return redirect("/login")
-
-    print(f"Fetching data for user {user.email}")
-
-    # Fetch and save solicitations from all sources
-    print("Fetching EVP solicitations...")
-    save_evp_solicitations_to_db()
-
-    print("Fetching Texas SmartBuy solicitations...")
-    save_txsmartbuy_solicitations_to_db()
-
-    return redirect("/filters")
+    try:
+        # Execute job without sending email, just for fetching data
+        execute_job_for_user(email, send_email_result=False)
+        return redirect("/filters")
+    except Exception as e:
+        print(f"Error fetching data for {email}: {e}")
+        return "Error fetching data", 500
 
 
 @app.route("/filters/test", methods=["POST"])
@@ -321,22 +337,16 @@ def test_filters():
     if not email:
         return redirect("/login")
 
-    user = db.get_user(email)
-    if not user:
-        return redirect("/login")
+    try:
+        # Execute job without sending email, just for testing filters
+        filtered_solicitations, user_filters = execute_job_for_user(
+            email, send_email_result=False, use_cache=True)
 
-    filters = db.get_filters_for_user(user.id)
-    print(f"User {user.email} has {len(filters)} filters")
-
-    all_solicitations = get_all_solicitations()
-    print(
-        f"Retrieved {len(all_solicitations)} total solicitations from database")
-
-    if filters:
-        matched = all_solicitations.filter(filters)
-        print(f"After filtering: {len(matched)} solicitations match")
-    else:
-        matched = all_solicitations
-        print(f"No filters applied, showing all {len(matched)} solicitations")
-
-    return render_template("filters.html", filters=filters, email=email, fields=Solicitation.get_filterable_fields(), matches=matched)
+        return render_template("filters.html",
+                               filters=user_filters,
+                               email=email,
+                               fields=Solicitation.get_filterable_fields(),
+                               matches=filtered_solicitations)
+    except Exception as e:
+        print(f"Error testing filters for {email}: {e}")
+        return "Error testing filters", 500
