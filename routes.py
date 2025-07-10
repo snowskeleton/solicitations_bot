@@ -64,6 +64,11 @@ def execute_job_for_user(user_email: str, send_email_result: bool = True, use_ca
     return filtered_solicitations, user_filters
 
 
+@app.route("/healthcheck", methods=["GET"])
+def healthcheck():
+ return "ok", 200
+
+
 @app.route("/", methods=["GET"])
 def default():
     email = session.get("email")
