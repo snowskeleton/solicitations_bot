@@ -20,7 +20,7 @@ app.secret_key = COOKIE_SECRET
 
 def fetch_and_save_all_solicitations():
     """
-    Fetch and save solicitations from all sources. If use_cache is True, skip fetching and use existing DB.
+    Fetch and save solicitations from all sources.
     """
     print("Fetching EVP solicitations...")
     save_evp_solicitations_to_db()
@@ -259,7 +259,7 @@ def run_scraper():
         user = db.get_user(email)
         if not user:
             return redirect("/login")
-        fetch_and_save_all_solicitations(use_cache=False)
+        fetch_and_save_all_solicitations()
         filtered_solicitations = process_user_solicitations(
             user)
         send_summary_email(user.email, filtered_solicitations)
@@ -337,7 +337,7 @@ def fetch_data_for_filters():
         user = db.get_user(email)
         if not user:
             return redirect("/login")
-        fetch_and_save_all_solicitations(use_cache=False)
+        fetch_and_save_all_solicitations()
         process_user_solicitations(user)
         return redirect("/filters")
     except Exception as e:
