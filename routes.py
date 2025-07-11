@@ -3,11 +3,13 @@ from typing import Dict
 from flask import Flask, request, redirect, render_template, session
 
 from storage import db
+from storage.models import User
 from storage.db import get_all_solicitations
+from storage.db import delete_schedule
 
-from emailer import send_email
+from emailer import send_email, send_summary_email
 from env import ADMIN_EMAIL, COOKIE_SECRET, URI
-from data_sources.Solicitation import Solicitation
+from data_sources.Solicitation import Solicitation, Solicitations
 from data_sources.evp_nc_gov import save_evp_solicitations_to_db
 from data_sources.txsmartbuy_gov__esbd import save_txsmartbuy_solicitations_to_db
 
@@ -16,52 +18,34 @@ app = Flask(__name__)
 app.secret_key = COOKIE_SECRET
 
 
-def execute_job_for_user(user_email: str, send_email_result: bool = True, use_cache: bool = False):
+def fetch_and_save_all_solicitations():
     """
-    Centralized function to execute a job for a user.
-    This includes fetching data, applying filters, and optionally sending email.
-    
-    :param user_email: Email of the user to run the job for
-    :param send_email_result: Whether to send email with results (default: True)
-    :return: Tuple of (filtered_solicitations, user_filters) for further processing
+    Fetch and save solicitations from all sources. If use_cache is True, skip fetching and use existing DB.
     """
-    user = db.get_user(user_email)
-    if not user:
-        raise ValueError(f"User not found: {user_email}")
+    print("Fetching EVP solicitations...")
+    save_evp_solicitations_to_db()
+    print("Fetching Texas SmartBuy solicitations...")
+    save_txsmartbuy_solicitations_to_db()
 
-    print(f"Starting job execution for user {user.email}")
 
-    if not use_cache:
-        # Fetch and save solicitations from all sources
-        # print("Fetching EVP solicitations...")
-        # save_evp_solicitations_to_db()
-
-        print("Fetching Texas SmartBuy solicitations...")
-        save_txsmartbuy_solicitations_to_db()
-    else:
-        print("Using cache")
-
+def process_user_solicitations(user: User) -> Solicitations:
+    """
+    For a user, filter solicitations and optionally send email. Returns (filtered_solicitations, user_filters).
+    """
+    # print(f"Processing solicitations for user {user.email}")
     all_solicitations = get_all_solicitations()
-    print(f"Total solicitations in database: {len(all_solicitations)}")
-
+    # print(f"Total solicitations in database: {len(all_solicitations)}")
     user_filters = db.get_filters_for_user(user.id)
-    print(f"User has {len(user_filters)} filters")
-
+    # print(f"User has {len(user_filters)} filters")
     if user_filters:
         filtered_solicitations = all_solicitations.filter(user_filters)
-        print(
-            f"After filtering: {len(filtered_solicitations)} solicitations match")
+        # print(
+        #     f"After filtering: {len(filtered_solicitations)} solicitations match")
     else:
         filtered_solicitations = all_solicitations
-        print(
-            f"No filters applied, sending all {len(filtered_solicitations)} solicitations")
-
-    # Send email if requested
-    if send_email_result:
-        from emailer import send_summary_email
-        send_summary_email(user.email, filtered_solicitations)
-
-    return filtered_solicitations, user_filters
+        # print(
+        #     f"No filters applied, sending all {len(filtered_solicitations)} solicitations")
+    return filtered_solicitations
 
 
 @app.route("/healthcheck", methods=["GET"])
@@ -247,6 +231,23 @@ def schedule_save(schedule_id: int):
     return redirect("/schedules")
 
 
+@app.route("/schedules/<int:schedule_id>/delete", methods=["POST"])
+def schedule_delete(schedule_id: int):
+    email = session.get("email")
+    if not email:
+        return redirect("/login")
+    user = db.get_user(email)
+    if not user:
+        return redirect("/login")
+
+    schedule = db.get_schedule_by_id(schedule_id)
+    if not schedule or schedule.user_id != user.id:
+        return "Schedule not found or access denied", 404
+
+    delete_schedule(schedule_id)
+    return redirect("/schedules")
+
+
 # Route to trigger the "run now" functionality for the logged-in user
 @app.route("/run", methods=["POST"])
 def run_scraper():
@@ -255,8 +256,13 @@ def run_scraper():
         return redirect("/login")
 
     try:
-        # Execute job with email sending enabled
-        execute_job_for_user(email, send_email_result=True)
+        user = db.get_user(email)
+        if not user:
+            return redirect("/login")
+        fetch_and_save_all_solicitations(use_cache=False)
+        filtered_solicitations = process_user_solicitations(
+            user)
+        send_summary_email(user.email, filtered_solicitations)
         return redirect("/")
     except Exception as e:
         print(f"Error running scraper for {email}: {e}")
@@ -328,8 +334,11 @@ def fetch_data_for_filters():
         return redirect("/login")
 
     try:
-        # Execute job without sending email, just for fetching data
-        execute_job_for_user(email, send_email_result=False)
+        user = db.get_user(email)
+        if not user:
+            return redirect("/login")
+        fetch_and_save_all_solicitations(use_cache=False)
+        process_user_solicitations(user)
         return redirect("/filters")
     except Exception as e:
         print(f"Error fetching data for {email}: {e}")
@@ -343,10 +352,11 @@ def test_filters():
         return redirect("/login")
 
     try:
-        # Execute job without sending email, just for testing filters
-        filtered_solicitations, user_filters = execute_job_for_user(
-            email, send_email_result=False, use_cache=True)
-
+        user = db.get_user(email)
+        if not user:
+            return redirect("/login")
+        user_filters = db.get_filters_for_user(user.id)
+        filtered_solicitations = process_user_solicitations(user)
         return render_template("filters.html",
                                filters=user_filters,
                                email=email,

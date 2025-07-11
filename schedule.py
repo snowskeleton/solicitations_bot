@@ -1,10 +1,12 @@
 import threading
 import time
 from datetime import datetime, time as dt_time
+from typing import Any
 from storage.db import has_run_today, mark_as_run, get_all_schedules, get_user_by_id
 # Import the centralized job function
-from routes import execute_job_for_user
-
+from routes import fetch_and_save_all_solicitations, process_user_solicitations
+from emailer import send_summary_email, send_email
+from env import ADMIN_EMAIL
 
 def should_run(schedule_time_str: str) -> bool:
     now = datetime.now()
@@ -27,32 +29,37 @@ def scheduler_loop():
         today_field = weekday_fields[today_index]
         date_str = now.strftime("%Y-%m-%d")
 
-        schedules = get_all_schedules()
+        schedules: list[Any] = get_all_schedules()
+        # Find all schedules that are due to run
+        due_schedules: list[Any] = []
         for schedule in schedules:
             schedule_time = getattr(schedule, today_field)
             if not schedule_time:
-                # print(f"Didn't match {schedule_time} for {today_field} in schedule {schedule}")
                 continue
             if has_run_today(schedule.id, date_str):
-                # print(f"Already run today for schedule {schedule.id} on {today_field}")
                 continue
             if should_run(schedule_time):
+                due_schedules.append(schedule)
+
+        if due_schedules:
+            fetch_and_save_all_solicitations()
+            for schedule in due_schedules:
                 user = get_user_by_id(schedule.user_id)
                 if user is None:
-                    # print(f"User with ID {schedule.user_id} not found for schedule {schedule.id}")
                     continue
                 print(
-                    f"Running scheduled job for user {user.email} on {today_field} at {schedule_time}")
+                    f"Running scheduled job for user {user.email} on {today_field} at {getattr(schedule, today_field)}")
                 try:
-                    # Execute job with email sending enabled for scheduled runs
-                    execute_job_for_user(user.email, send_email_result=True)
+                    filtered_solicitations = process_user_solicitations(user)
+                    send_summary_email(user.email, filtered_solicitations)
                     mark_as_run(schedule.id, date_str)
                 except Exception as e:
                     print(
                         f"Error running scheduled job for user {user.email}: {e}")
-                    # Don't mark as run if there was an error
-            else:
-                print(f"Skipping schedule {schedule.id} on {today_field} at {schedule_time}")    
+                    send_email(ADMIN_EMAIL, "Error running scheduled job",
+                               f"Error running scheduled job for user {user.email} with {schedule.id}: {e}")
+        else:
+            print("No schedules due to run at this time.")
 
         time.sleep(60)
 

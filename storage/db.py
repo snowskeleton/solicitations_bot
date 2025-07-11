@@ -257,6 +257,13 @@ def update_schedule(schedule_id: int, updates: Dict[str, str]) -> None:
         ''', values)
         conn.commit()
 
+
+def delete_schedule(schedule_id: int) -> None:
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM schedules WHERE id = ?', (schedule_id,))
+        conn.commit()
+
 def has_run_today(schedule_id: int, date_str: str) -> bool:
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()

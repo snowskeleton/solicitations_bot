@@ -103,7 +103,7 @@ def fetch_txsmartbuy_esbd_data(params: Dict[str, Any] = {}) -> Any:
 
         # Fetch remaining pages using threading (3 concurrent requests)
         print(
-            f"Fetching remaining {total_pages - 1} pages with 3 concurrent threads...")
+            f"Fetching remaining {total_pages - 1} pages with 5 concurrent threads...")
 
         def fetch_page(page_num: int) -> List[Dict[str, Any]]:
             """Helper function to fetch a single page"""
@@ -218,7 +218,7 @@ def fetch_txsmartbuy_solicitations(fetch_descriptions: bool = True) -> Solicitat
                 return solicitation
 
             # Use ThreadPoolExecutor to fetch descriptions concurrently
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=10) as executor:
                 # Submit all description fetch requests
                 future_to_solicitation = {
                     executor.submit(fetch_description_for_solicitation, solicitation): solicitation
