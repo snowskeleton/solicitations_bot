@@ -23,7 +23,7 @@ Type=simple
 User=$USER
 WorkingDirectory=$WORKING_DIR
 Environment=PATH=$WORKING_DIR/.venv/bin
-ExecStart=$WORKING_DIR/venv/bin/gunicorn --bind 0.0.0.0:5002 main:app
+ExecStart=$WORKING_DIR/.venv/bin/gunicorn --bind 0.0.0.0:5002 main:app
 Restart=always
 RestartSec=10
 StandardOutput=journal
