@@ -32,12 +32,6 @@ def fetch_solicitation_details(solicitation_id: str) -> str:
         if isinstance(data, dict):
             description = data.get("description", "")
 
-            # Clean up HTML tags if present
-            if description and "<" in description:
-                import re
-                description = re.sub(r'<[^>]+>', '', description)
-                description = re.sub(r'\s+', ' ', description).strip()
-
             return description
 
         return ""
