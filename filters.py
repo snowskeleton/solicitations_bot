@@ -43,11 +43,11 @@ def evaluate_filter(criteria: Dict[str, Any] | str, solicitation: 'Solicitation'
                     return False
                 today = datetime.today().date()
                 if value == "last_1_day":
-                    return (today - date_val).days < 1
+                    return (today - date_val).days < 2
                 elif value == "last_3_days":
-                    return (today - date_val).days < 3
+                    return (today - date_val).days < 4
                 elif value == "last_7_days":
-                    return (today - date_val).days < 7
+                    return (today - date_val).days < 8
             # Default string logic
             result = False
             if op == "contains":
